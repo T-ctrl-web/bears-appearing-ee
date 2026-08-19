@@ -43,8 +43,7 @@
 │   ├── verification-rules.json  # 验证规则（三级）
 │   ├── memory-config.json       # 记忆系统配置（三层）
 │   ├── cost-control.json        # 成本控制
-│   ├── harness-config.json      # DeepSeek harness 接入配置
-│   └── lark-config.json         # 飞书 IM 集成配置
+│   └── harness-config.example.json  # DeepSeek harness 接入配置示例
 ├── engine/                      # 核心引擎
 │   ├── complexity-evaluator.md  # 复杂度评估
 │   ├── parallel-scheduler.md   # 并行调度
