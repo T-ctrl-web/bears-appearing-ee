@@ -19,6 +19,9 @@ const {
   ROLES,
 } = require('./state');
 
+const { TeamRunner } = require('../engine/team-runner');
+const runner = new TeamRunner({ getState, addLog, resetTask, startTask, setRoleStatus, addWave, setWaveStatus, completeTask, ROLES });
+
 const sseClients = new Set();
 
 function broadcastSSE() {
@@ -161,6 +164,97 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     addLog(body.level || 'info', body.message, body.roleId);
     sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  // === 状态机 API ===
+  if (p === '/api/sm/start' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      runner.startTask(body);
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/draft' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      runner.startDrafting(body.waves || null);
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/complete-draft' && req.method === 'POST') {
+    try {
+      runner.completeDrafting();
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/dispatch' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      runner.dispatchWave(body.waveIndex, body.waveData);
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/complete-worker' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      runner.completeWorker(body.roleId, body.result);
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/verify' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      runner.startVerification(body.verifierId);
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/complete-verify' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      runner.completeVerification(body.passed, body.issues || []);
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/complete-iteration' && req.method === 'POST') {
+    try {
+      runner.completeIteration();
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/deliver' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      runner.deliver(body.result);
+      sendJson(res, 200, { ok: true, state: runner.currentState });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (p === '/api/sm/snapshot' && req.method === 'GET') {
+    sendJson(res, 200, runner.getSnapshot());
+    return;
+  }
+
+  if (p === '/api/sm/reset' && req.method === 'POST') {
+    runner.reset();
+    sendJson(res, 200, { ok: true, state: 'IDLE' });
     return;
   }
 
