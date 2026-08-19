@@ -10,3 +10,6 @@ memory/session/
 *.bak
 .DS_Store
 Thumbs.db
+
+# IDE 生成目录
+.trae-html-share-packages/

@@ -45,7 +45,11 @@
 │   ├── cost-control.json        # 成本控制
 │   └── harness-config.example.json  # DeepSeek harness 接入配置示例
 ├── engine/                      # 核心引擎
-│   ├── complexity-evaluator.md  # 复杂度评估
+│   ├── complexity-evaluator.md  # 复杂度评估（设计文档）
+│   ├── complexity-evaluator.js  # 复杂度评估实现（六维加权 + 文本启发式）
+│   ├── state-machine.js         # 任务状态机（确定性流程控制）
+│   ├── team-runner.js           # 团队调度引擎（驱动状态机）
+│   ├── tests/                   # 自动化测试（node --test engine/tests/*.test.js）
 │   ├── parallel-scheduler.md   # 并行调度
 │   ├── priority-queue.md        # 优先级队列
 │   ├── cost-controller.md      # 成本控制

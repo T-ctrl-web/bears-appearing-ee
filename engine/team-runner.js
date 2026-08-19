@@ -15,6 +15,7 @@
  */
 
 const { StateMachine, STATES } = require('./state-machine');
+const { evaluateAuto } = require('./complexity-evaluator');
 
 class TeamRunner {
   constructor(stateModule) {
@@ -59,6 +60,14 @@ class TeamRunner {
     this.machine = new StateMachine(this.ctx);
     this.sm.startTask(taskInfo);
     this.machine.transition('DRAFTING');
+    // 未显式指定复杂度时自动评估（文本启发式），并记录评估结论
+    if (!this.ctx.task.complexity) {
+      const assessment = evaluateAuto(this.ctx.task.requirement || this.ctx.task.title || '');
+      this.ctx.task.complexity = assessment.level;
+      this.ctx.task.assessment = assessment;
+      const basis = assessment.basis === 'text' ? '关键词判断' : `得分 ${assessment.score}`;
+      this.ctx.log('info', `复杂度评估：${assessment.level}（${basis}），处理方式：${assessment.strategy}`, 'xiongda');
+    }
     return this;
   }
 
