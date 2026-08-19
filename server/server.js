@@ -20,7 +20,9 @@ const {
 } = require('./state');
 
 const { TeamRunner } = require('../engine/team-runner');
-const runner = new TeamRunner({ getState, addLog, resetTask, startTask, setRoleStatus, addWave, setWaveStatus, completeTask, ROLES });
+const { HarnessAdapter } = require('../engine/harness-adapter');
+const harness = new HarnessAdapter();
+const runner = new TeamRunner({ getState, addLog, resetTask, startTask, setRoleStatus, addWave, setWaveStatus, completeTask, ROLES }, { harness });
 
 const sseClients = new Set();
 
@@ -104,6 +106,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (p === '/api/state' && req.method === 'GET') { sendJson(res, 200, getState()); return; }
+  if (p === '/api/harness/status' && req.method === 'GET') { sendJson(res, 200, harness.engineStatus); return; }
   if (p === '/api/roles' && req.method === 'GET') { sendJson(res, 200, ROLES); return; }
   if (p === '/api/logs' && req.method === 'GET') { sendJson(res, 200, getState().logs); return; }
 
@@ -267,5 +270,6 @@ server.listen(PORT, () => {
   console.log(`  看板地址:  http://localhost:${PORT}`);
   console.log(`  SSE 通道:  http://localhost:${PORT}/events`);
   console.log(`  API 基址:  http://localhost:${PORT}/api`);
+  console.log(`  Harness:   ${harness.engineStatus.configured ? `DeepSeek API（${harness.config.model}）已配置` : 'mock 演示模式（未配置 API Key，发真实请求请配置 config/harness-config.json 或环境变量 DEEPSEEK_API_KEY）'}`);
   console.log(`\n  等待连接...\n`);
 });

@@ -16,12 +16,15 @@
 
 const { StateMachine, STATES } = require('./state-machine');
 const { evaluateAuto } = require('./complexity-evaluator');
+const { mapLimit } = require('./harness-adapter');
 
 class TeamRunner {
-  constructor(stateModule) {
+  constructor(stateModule, options = {}) {
     this.sm = stateModule;
+    this.harness = options.harness || null;
     this.machine = null;
     this.ctx = null;
+    this._execution = null; // 进行中的波次异步执行 Promise（测试/运维可 await）
   }
 
   get currentTask() { return this.ctx?.task || null; }
@@ -57,6 +60,9 @@ class TeamRunner {
     }
     this.sm.resetTask();
     this.ctx = this._createContext(taskInfo);
+    this._execution = null;
+    // autoExecute：由 harness 真实执行 Worker 任务（需同时具备 harness）
+    this.autoExecute = !!(taskInfo.autoExecute && this.harness);
     this.machine = new StateMachine(this.ctx);
     this.sm.startTask(taskInfo);
     this.machine.transition('DRAFTING');
@@ -107,7 +113,46 @@ class TeamRunner {
       this.ctx.setRole(roleId, 'WORKING', this.ctx.waves[waveIndex].task || '执行中');
     });
     this.machine.transition('EXECUTING');
+    // 真实执行闭环：autoExecute 时由 harness 调用 LLM 执行，完成后自动 completeWorker
+    if (this.autoExecute && this.harness && this.ctx.waves[waveIndex].roles.length) {
+      this._executeWaveAsync(this.ctx.waves[waveIndex], waveIndex);
+    }
     return this;
+  }
+
+  /**
+   * 异步执行波次：并发调用 harness（最多 3 个），每个 Worker 完成后回调 completeWorker。
+   * 波次全部完成后状态机自动进入 VERIFYING。
+   */
+  _executeWaveAsync(wave, waveIndex) {
+    const task = wave.task || this.ctx.task.requirement || this.ctx.task.title || '';
+    const context = wave.context || '';
+    if (this.autoExecute) {
+      this.ctx.log('info', `波次${waveIndex + 1}进入 harness 执行（${this.harness.config?.engine || 'harness'}引擎，最多3并发）`, null);
+    }
+    this._execution = mapLimit(wave.roles, 3, async (roleId) => {
+      const res = await this.harness.executeWorker({ roleId, task, context });
+      if (!this.ctx || this.currentState === 'IDLE') return res; // 任务已被重置，丢弃过期结果
+
+      wave.outputs = wave.outputs || {};
+      if (res.status === 'success') {
+        wave.outputs[roleId] = res.output;
+        this.ctx.log('info', `${res.assignee}（${res.engine}）执行完成，耗时${res.duration_ms}ms`, roleId);
+        const summary = String(res.output).slice(0, 120) + (String(res.output).length > 120 ? '…' : '');
+        try { this.completeWorker(roleId, summary); }
+        catch (e) { this.ctx.log('warn', `忽略过期的完成回调（${roleId}）：${e.message}`, roleId); }
+      } else {
+        wave.outputs[roleId] = null;
+        this.ctx.log('error', `${res.assignee} 执行失败：${res.error}`, roleId);
+        try { this.completeWorker(roleId, `执行失败：${res.error}`); }
+        catch (e) { this.ctx.log('warn', `忽略过期的完成回调（${roleId}）：${e.message}`, roleId); }
+      }
+      return res;
+    }).catch((err) => {
+      if (this.ctx) this.ctx.log('error', `波次${waveIndex + 1}执行异常：${err.message}`, null);
+      return [];
+    });
+    return this._execution;
   }
 
   completeWorker(roleId, result) {
@@ -182,6 +227,8 @@ class TeamRunner {
     this.sm.resetTask();
     this.ctx = null;
     this.machine = null;
+    this._execution = null;
+    this.autoExecute = false;
     return this;
   }
 
@@ -197,6 +244,7 @@ class TeamRunner {
       task: this.ctx?.task || null,
       currentWave: this.ctx?.currentWave ?? -1,
       iterationCount: this.ctx?.iterationCount ?? 0,
+      waveOutputs: (this.ctx?.waves || []).map(w => w.outputs || {}),
       history: this.machine?.getHistory() || [],
     };
   }

@@ -47,9 +47,11 @@
 ├── engine/                      # 核心引擎
 │   ├── complexity-evaluator.md  # 复杂度评估（设计文档）
 │   ├── complexity-evaluator.js  # 复杂度评估实现（六维加权 + 文本启发式）
+│   ├── harness-adapter.md       # 多引擎适配器（设计文档）
+│   ├── harness-adapter.js       # Worker 真实执行闭环（DeepSeek API / mock 演示）
 │   ├── state-machine.js         # 任务状态机（确定性流程控制）
-│   ├── team-runner.js           # 团队调度引擎（驱动状态机）
-│   ├── tests/                   # 自动化测试（node --test engine/tests/*.test.js）
+│   ├── team-runner.js           # 团队调度引擎（驱动状态机 + harness 执行）
+│   ├── tests/                   # 自动化测试（node --test "engine/tests/*.test.js"）
 │   ├── parallel-scheduler.md   # 并行调度
 │   ├── priority-queue.md        # 优先级队列
 │   ├── cost-controller.md      # 成本控制
@@ -95,8 +97,31 @@
 ## Phase 3 新增能力
 
 - **DeepSeek harness**：多引擎调度，TRAE + DeepSeek API 路由，自动降级
+- **Worker 真实执行闭环**：`autoExecute` 模式下派发波次后由 harness 真实调用 LLM（角色 MD 全文作为 system prompt），完成后自动进入验证，最多 3 并发
 - **飞书 IM 集成**：秒回确认 + 任务派发 + 进度通知 + 交付通知
 - **纸片人工作模式**：14角色可视化看板，实时状态展示，任务流程演示
+
+## Worker 真实执行闭环使用
+
+```bash
+# 1. 配置（二选一）
+export DEEPSEEK_API_KEY=sk-xxx          # 环境变量
+cp config/harness-config.example.json config/harness-config.json  # 或配置文件填 api_key
+
+# 2. 启动
+cd server && npm start                  # 启动横幅会显示 harness 状态
+
+# 3. 触发真实闭环（autoExecute: true）
+curl -X POST localhost:3120/api/sm/start -H "Content-Type: application/json" \
+  -d '{"requirement":"实现登录页","autoExecute":true}'
+curl -X POST localhost:3120/api/sm/complete-draft -H "Content-Type: application/json" -d '{}'
+curl -X POST localhost:3120/api/sm/dispatch -H "Content-Type: application/json" \
+  -d '{"waveIndex":0,"waveData":{"roles":["guangtouqiang","xionger"],"task":"设计并实现登录页"}}'
+# Worker 并行真实调用 DeepSeek，全部完成后自动进入 VERIFYING
+# 产出快照：GET /api/sm/snapshot（waveOutputs）；引擎状态：GET /api/harness/status
+```
+
+未配置 API Key 时自动降级 **mock 演示模式**（确定性产出，不发真实请求）。
 
 ## Phase 1-2 能力回顾
 

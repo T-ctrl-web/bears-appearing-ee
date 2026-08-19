@@ -44,7 +44,8 @@ export function apply(ctx, config) {
     // 动态加载状态模块
     const stateModule = loadStateModule()
     const { TeamRunner } = loadTeamRunner()
-    const runner = new TeamRunner(stateModule)
+    const { HarnessAdapter } = require(path.join(ROOT, 'engine', 'harness-adapter.js'))
+    const runner = new TeamRunner(stateModule, { harness: new HarnessAdapter() })
 
     const sseClients = new Set()
     stateModule.subscribe(() => {

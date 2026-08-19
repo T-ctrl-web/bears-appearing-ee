@@ -174,3 +174,82 @@ test('集成：评估结论写入日志', () => {
   assert.match(evalLog.message, /complex/);
   assert.match(evalLog.message, /Level 3/);
 });
+
+// === Worker 真实执行闭环（autoExecute + harness） ===
+
+function fakeHarness(behavior) {
+  return {
+    config: { engine: 'mock' },
+    executeWorker: async ({ roleId, task }) => {
+      if (behavior === 'fail') {
+        return { roleId, assignee: roleId, engine: 'mock', status: 'failed', output: null, duration_ms: 1, error: 'API 500: boom' };
+      }
+      return { roleId, assignee: roleId, engine: 'mock', status: 'success', output: `产出:${roleId}:${task}`, duration_ms: 1, error: null };
+    },
+  };
+}
+
+test('闭环：autoExecute 派发后 Worker 由 harness 执行并自动进入 VERIFYING', async () => {
+  const r = new TeamRunner(stateModule, { harness: fakeHarness() });
+  r.reset();
+  r.startTask({ requirement: '开发登录页', autoExecute: true });
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['guangtouqiang', 'xionger'], task: '实现登录' });
+  assert.equal(r.currentState, 'EXECUTING'); // 异步执行中
+  await r._execution;
+  assert.equal(r.currentState, 'VERIFYING'); // 全部完成自动进入验证
+  const snap = r.getSnapshot();
+  assert.equal(snap.waveOutputs[0].guangtouqiang, '产出:guangtouqiang:实现登录');
+  assert.equal(snap.waveOutputs[0].xionger, '产出:xionger:实现登录');
+});
+
+test('闭环：harness 执行失败也推进波次（记录失败并进入验证）', async () => {
+  const r = new TeamRunner(stateModule, { harness: fakeHarness('fail') });
+  r.reset();
+  r.startTask({ requirement: '困难任务', autoExecute: true });
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: '失败场景' });
+  await r._execution;
+  assert.equal(r.currentState, 'VERIFYING');
+  assert.equal(r.getSnapshot().waveOutputs[0].xionger, null);
+  const logs = stateModule.getState().logs;
+  assert.ok(logs.some(l => l.level === 'error' && /执行失败/.test(l.message)), '应有失败日志');
+});
+
+test('闭环：执行期间 reset，过期回调被安全忽略', async () => {
+  let release;
+  const slowHarness = {
+    config: { engine: 'mock' },
+    executeWorker: ({ roleId }) => new Promise(resolve => {
+      release = () => resolve({ roleId, assignee: roleId, engine: 'mock', status: 'success', output: 'late', duration_ms: 1, error: null });
+    }),
+  };
+  const r = new TeamRunner(stateModule, { harness: slowHarness });
+  r.reset();
+  r.startTask({ requirement: 'x', autoExecute: true });
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: '慢任务' });
+  r.reset(); // 执行中途重置
+  assert.equal(r.currentState, 'IDLE');
+  release(); // harness 迟到返回
+  await r._execution;
+  await new Promise(res => setImmediate(res));
+  assert.equal(r.currentState, 'IDLE'); // 不应被过期结果扰动
+});
+
+test('闭环：未开启 autoExecute 时保持手动模式（不发 harness 请求）', async () => {
+  let called = 0;
+  const countingHarness = {
+    config: { engine: 'mock' },
+    executeWorker: async (...a) => { called++; return { status: 'success', output: 'x' }; },
+  };
+  const r = new TeamRunner(stateModule, { harness: countingHarness });
+  r.reset();
+  r.startTask({ requirement: '手动模式' }); // 不传 autoExecute
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['xionger'] });
+  assert.equal(r.currentState, 'EXECUTING');
+  assert.equal(called, 0); // harness 未被调用
+  r.completeWorker('xionger', '手动完成');
+  assert.equal(r.currentState, 'VERIFYING');
+});
