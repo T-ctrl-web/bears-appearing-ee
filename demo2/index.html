@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'">
+  <title>熊出没集团 · 安全登录看板</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 顶部栏 -->
+  <header class="app-header">
+    <h1 class="app-title">熊出没集团 · 安全登录看板</h1>
+    <button id="logout-btn" type="button" hidden>登出</button>
+  </header>
+
+  <!-- 登录视图 -->
+  <section id="login-view" class="view login-view">
+    <div class="login-card">
+      <h2 id="form-title">登录</h2>
+
+      <form id="auth-form" autocomplete="off">
+        <div class="form-group">
+          <label for="username">用户名</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            autocomplete="new-password"
+            maxlength="20"
+            placeholder="字母数字下划线 3-20 位"
+            required
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="password">密码</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            autocomplete="new-password"
+            maxlength="20"
+            placeholder="6-20 位"
+            required
+          >
+        </div>
+
+        <div class="form-group form-row" id="remember-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="remember"> 记住我（7 天免登录）
+          </label>
+        </div>
+
+        <div class="form-group">
+          <button type="submit" id="auth-submit" class="btn-primary">登录</button>
+        </div>
+
+        <div class="form-group">
+          <button type="button" id="toggle-mode" class="btn-link">
+            还没有账号？注册
+          </button>
+        </div>
+
+        <p id="auth-msg" class="form-msg"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- 看板视图 -->
+  <section id="kanban-view" class="view kanban-view" hidden>
+    <div class="kanban-topbar">
+      <form id="add-form" autocomplete="off">
+        <input
+          type="text"
+          id="task-title"
+          name="task-title"
+          maxlength="100"
+          placeholder="输入任务标题，回车新增"
+          required
+        >
+        <button type="submit" class="btn-primary">新增</button>
+      </form>
+      <p id="kanban-msg" class="form-msg"></p>
+    </div>
+
+    <div class="board">
+      <div class="col" data-status="todo">
+        <h3 class="col-title">待办</h3>
+        <ul class="task-list" data-status="todo"></ul>
+      </div>
+      <div class="col" data-status="doing">
+        <h3 class="col-title">进行中</h3>
+        <ul class="task-list" data-status="doing"></ul>
+      </div>
+      <div class="col" data-status="done">
+        <h3 class="col-title">完成</h3>
+        <ul class="task-list" data-status="done"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 脚本加载顺序：storage → auth → kanban → app，保证依赖就绪 -->
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/kanban.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

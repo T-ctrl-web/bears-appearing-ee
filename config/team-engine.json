@@ -1,0 +1,216 @@
+{
+  "project_name": "熊出没集团",
+  "version": "2.0.0",
+  "phase": 2,
+  "description": "仿 MAVIS 多 Agent 协作系统 — Phase 2 完整版",
+
+  "leader": {
+    "id": "bear-ceo",
+    "name": "熊大",
+    "role": "总裁",
+    "character": "棕熊 · 乐观勇敢聪明",
+    "file": "roles/leader/bear-ceo.md",
+    "responsibilities": [
+      "接收用户需求",
+      "复杂度评估（简单/中等/复杂）",
+      "任务拆解与分配",
+      "快速通道处理简单任务",
+      "并行调度独立子任务",
+      "主动监控 Worker 状态",
+      "汇总 Worker 产出并交付用户",
+      "成本控制（超限暂停）",
+      "错误恢复（重试/换角色/升级）",
+      "优先级队列管理（P0/P1/P2）"
+    ]
+  },
+
+  "workers": [
+    {
+      "id": "architect",
+      "name": "光头强",
+      "role": "架构",
+      "character": "人类 · 发明家伐木工",
+      "file": "roles/workers/architect-bear.md",
+      "skills": ["scaffold", "code-review"],
+      "active": true
+    },
+    {
+      "id": "implementer",
+      "name": "熊二",
+      "role": "开发",
+      "character": "棕熊 · 憨厚力大贪吃",
+      "file": "roles/workers/implementer-bear.md",
+      "skills": ["scaffold"],
+      "active": true
+    },
+    {
+      "id": "test-engineer",
+      "name": "蹦蹦",
+      "role": "测试",
+      "character": "松鼠 · 胆小但消息灵通",
+      "file": "roles/workers/test-engineer-bear.md",
+      "skills": ["test-gen"],
+      "active": true
+    },
+    {
+      "id": "debugger",
+      "name": "萝卜头",
+      "role": "调试",
+      "character": "鼹鼠 · 聪明善于挖掘",
+      "file": "roles/workers/debugger-bear.md",
+      "skills": ["code-review"],
+      "active": true
+    },
+    {
+      "id": "documentation",
+      "name": "肥波",
+      "role": "文档",
+      "character": "肥猫 · 光头强的宠物",
+      "file": "roles/workers/documentation-bear.md",
+      "skills": [],
+      "active": true
+    },
+    {
+      "id": "ui-designer",
+      "name": "翠花",
+      "role": "界面",
+      "character": "母熊 · 美丽动人爱打人",
+      "file": "roles/workers/ui-designer-bear.md",
+      "skills": [],
+      "active": true
+    },
+    {
+      "id": "visual-designer",
+      "name": "涂涂",
+      "role": "视觉",
+      "character": "猫头鹰 · 夜视能力极强",
+      "file": "roles/workers/visual-designer-bear.md",
+      "skills": [],
+      "active": true
+    },
+    {
+      "id": "sysadmin",
+      "name": "拖拖",
+      "role": "运维",
+      "character": "乌龟 · 性格单纯稳扎稳打",
+      "file": "roles/workers/sysadmin-bear.md",
+      "skills": [],
+      "active": true
+    },
+    {
+      "id": "research",
+      "name": "毛毛",
+      "role": "调研",
+      "character": "金色小猴 · 吉吉的跟班",
+      "file": "roles/workers/research-bear.md",
+      "skills": [],
+      "active": true
+    }
+  ],
+
+  "verifiers": [
+    {
+      "id": "code-reviewer",
+      "name": "吉吉国王",
+      "role": "代码质检",
+      "character": "猴子 · 自封森林之王",
+      "file": "roles/verifiers/code-reviewer-bear.md",
+      "skills": ["code-review"],
+      "verification_level": 1,
+      "max_iterations": 1,
+      "active": true
+    },
+    {
+      "id": "design-reviewer",
+      "name": "老鳄",
+      "role": "设计质检",
+      "character": "鳄鱼 · 自称百事通",
+      "file": "roles/verifiers/design-reviewer-bear.md",
+      "skills": ["code-review"],
+      "verification_level": 2,
+      "max_iterations": 2,
+      "active": true
+    },
+    {
+      "id": "quality-gate",
+      "name": "小狸",
+      "role": "质量门禁",
+      "character": "狐狸 · 机灵狡黠",
+      "file": "roles/verifiers/quality-gate-bear.md",
+      "skills": ["code-review", "test-gen"],
+      "verification_level": 2,
+      "max_iterations": 2,
+      "active": true
+    },
+    {
+      "id": "security",
+      "name": "铁掌大师",
+      "role": "安全",
+      "character": "东北虎 · 武功高强",
+      "file": "roles/verifiers/security-bear.md",
+      "skills": ["code-review"],
+      "verification_level": 3,
+      "max_iterations": 3,
+      "active": true
+    }
+  ],
+
+  "fast_path": {
+    "enabled": true,
+    "rules": {
+      "simple": "总裁直接处理，不派 Worker",
+      "threshold": "改文案/修拼写/改配置 等单点修改",
+      "complexity_eval": {
+        "simple": { "criteria": "单文件单点修改", "action": "总裁直干", "verifier": "无" },
+        "medium": { "criteria": "单模块开发/2-4步", "action": "拆解派发", "verifier": "Level 1 吉吉国王" },
+        "complex": { "criteria": "跨模块/5+步", "action": "拆解+并行派发", "verifier": "Level 2 老鳄+小狸" }
+      }
+    }
+  },
+
+  "parallel": {
+    "enabled": true,
+    "strategy": "独立子任务并行派发，有依赖的顺序执行",
+    "max_concurrent": 3,
+    "note": "Phase 2 支持局部并行，最多同时 3 个 subagent"
+  },
+
+  "task_state_machine": {
+    "states": ["待处理", "已拆解", "执行中", "并行执行中", "待验证", "验证驳回", "完成", "失败", "已暂停"],
+    "transitions": {
+      "待处理→已拆解": "Leader 完成任务拆解",
+      "已拆解→执行中": "Leader 顺序派发 Worker",
+      "已拆解→并行执行中": "Leader 并行派发独立子任务",
+      "执行中→待验证": "Worker 完成产出",
+      "并行执行中→待验证": "全部并行 Worker 完成",
+      "待验证→完成": "Verifier 审查通过",
+      "待验证→验证驳回": "Verifier 驳回",
+      "验证驳回→执行中": "Leader 重新派发（迭代+1）",
+      "执行中→已暂停": "成本超限",
+      "已暂停→执行中": "用户追加预算",
+      "执行中→失败": "重试耗尽，升级用户"
+    }
+  },
+
+  "priority_queue": {
+    "levels": {
+      "P0": { "name": "紧急", "action": "立即插队执行，暂停其他任务", "examples": "线上故障/安全漏洞" },
+      "P1": { "name": "常规", "action": "正常排队执行", "examples": "功能开发/Bug修复" },
+      "P2": { "name": "后台", "action": "空闲时执行，不阻塞P1", "examples": "文档优化/技术债" }
+    }
+  },
+
+  "complexity_evaluator": {
+    "dimensions": ["文件数", "模块数", "依赖关系", "技术栈数量", "安全敏感度"],
+    "rules": {
+      "simple": "文件数<=1 且 模块数<=1 且 无安全敏感",
+      "medium": "文件数2-5 或 模块数<=2",
+      "complex": "文件数>5 或 模块数>2 或 安全敏感 或 跨系统"
+    },
+    "verifier_mapping": {
+      "simple": null,
+      "medium": "level_1",
+      "complex": "level_2"
+    }
+  }
+}

@@ -1,0 +1,390 @@
+/* ==================================================
+ * 安全登录看板 — 基本功能样式
+ * 翠花后续美化，这里先保证布局和功能态可用
+ * ================================================== */
+
+/* ========== 基础重置 ========== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  background: #f5f6f8;
+}
+
+ul {
+  list-style: none;
+}
+
+/* ========== 顶部栏 ========== */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: #2c3e50;
+  color: #fff;
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+#logout-btn {
+  padding: 6px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+#logout-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ========== 视图容器 ========== */
+.view {
+  min-height: calc(100vh - 52px);
+}
+
+.view[hidden] {
+  display: none !important;
+}
+
+/* ========== 登录视图 ========== */
+.login-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 32px 28px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.login-card h2 {
+  margin-bottom: 24px;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  color: #2c3e50;
+}
+
+/* ========== 表单 ========== */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus {
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.15);
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* ========== 按钮 ========== */
+.btn-primary {
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #3498db;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-primary:hover {
+  background: #2980b9;
+}
+
+.btn-primary:disabled {
+  background: #a0cfee;
+  cursor: not-allowed;
+}
+
+.btn-link {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: #3498db;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+/* ========== 表单消息 ========== */
+.form-msg {
+  min-height: 20px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #e74c3c;
+  text-align: center;
+}
+
+/* ========== 看板视图 ========== */
+.kanban-view {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px;
+}
+
+.kanban-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+#add-form {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  max-width: 500px;
+}
+
+#add-form input[type="text"] {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+}
+
+#add-form input[type="text"]:focus {
+  border-color: #3498db;
+}
+
+#add-form .btn-primary {
+  width: auto;
+  padding: 9px 20px;
+}
+
+#kanban-msg {
+  flex: 1;
+  text-align: right;
+}
+
+/* ========== 看板三列 ========== */
+.board {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  align-items: flex-start;
+}
+
+.col {
+  flex: 1;
+  min-width: 220px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 180px);
+}
+
+.col-title {
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #2c3e50;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+/* 不同列标题色 */
+.col[data-status="todo"] .col-title {
+  border-bottom-color: #e74c3c;
+}
+
+.col[data-status="doing"] .col-title {
+  border-bottom-color: #f39c12;
+}
+
+.col[data-status="done"] .col-title {
+  border-bottom-color: #27ae60;
+}
+
+.task-list {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  min-height: 80px;
+}
+
+/* 拖拽放置高亮 */
+.col.drag-over .task-list {
+  background: #eaf4fc;
+  border: 2px dashed #3498db;
+  border-radius: 6px;
+}
+
+/* ========== 任务卡片 ========== */
+.task-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: grab;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.task-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: #c0c0c0;
+}
+
+.task-card:active {
+  cursor: grabbing;
+}
+
+/* 拖拽中的卡片半透明 */
+.task-card.dragging {
+  opacity: 0.4;
+}
+
+.task-title {
+  flex: 1;
+  word-break: break-all;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #333;
+}
+
+.task-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.task-actions button {
+  padding: 3px 8px;
+  border: 1px solid #d0d5dd;
+  background: #fafafa;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #666;
+}
+
+.task-actions button:hover {
+  background: #f0f0f0;
+}
+
+.task-actions .btn-delete:hover {
+  border-color: #e74c3c;
+  color: #e74c3c;
+  background: #fdf0ef;
+}
+
+.task-actions .btn-edit:hover {
+  border-color: #3498db;
+  color: #3498db;
+  background: #eaf4fc;
+}
+
+/* 内联编辑输入框 */
+.task-edit-input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #3498db;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+}
+
+/* 空列表提示 */
+.task-list:empty::after {
+  content: "暂无任务";
+  display: block;
+  text-align: center;
+  padding: 20px 0;
+  color: #bbb;
+  font-size: 13px;
+}
+
+/* ========== 响应式：小屏堆叠 ========== */
+@media (max-width: 768px) {
+  .board {
+    flex-direction: column;
+  }
+
+  .col {
+    width: 100%;
+  }
+
+  .app-header {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+}

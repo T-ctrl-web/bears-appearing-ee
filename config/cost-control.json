@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "description": "成本控制配置 — Phase 2 复杂任务支持更多 subagent",
+
+  "subagent_limit": {
+    "per_task": 12,
+    "per_session": 30,
+    "on_exceed": "暂停派发，输出当前进度和原因，问用户是否追加预算"
+  },
+
+  "verification_iteration_limit": {
+    "level_1": 1,
+    "level_2": 2,
+    "level_3": 3,
+    "on_exceed": "输出终审报告并升级用户决策"
+  },
+
+  "timeout": {
+    "worker_default_ms": 120000,
+    "verifier_default_ms": 60000,
+    "on_timeout": "标记超时，Leader 决定重试或升级用户"
+  },
+
+  "retry": {
+    "max_retries": 2,
+    "strategy": "同角色重试 → 换角色重试 → 升级用户",
+    "on_exhausted": "标记任务失败，输出失败报告，通知用户"
+  }
+}

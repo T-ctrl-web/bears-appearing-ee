@@ -1,0 +1,20 @@
+# 会话记忆（临时数据，不纳入版本控制）
+memory/session/
+
+# 原始封存文件（体积大，已在 Bears-appearing-ee 目录单独管理）
+# 如需排除请取消注释
+# Bears-appearing-ee/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# 临时文件
+*.tmp
+*.bak
+*~

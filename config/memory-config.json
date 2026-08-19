@@ -1,0 +1,72 @@
+{
+  "version": "2.0.0",
+  "description": "记忆系统配置 — Phase 2 三层记忆全部启用",
+
+  "layers": {
+    "session": {
+      "name": "会话记忆",
+      "description": "记录当前会话的任务上下文，支持同会话内追问",
+      "active": true,
+      "storage": "memory/session/",
+      "format": "jsonl",
+      "content": [
+        "用户原始需求",
+        "Leader 任务拆解表",
+        "各 Worker 产出摘要",
+        "Verifier 审查结果",
+        "错误恢复记录",
+        "最终交付物摘要"
+      ],
+      "schema": {
+        "session_id": "string",
+        "timestamp": "ISO 8601",
+        "user_request": "string",
+        "task_breakdown": "array of {step, assignee, output, dependency, parallel_wave}",
+        "worker_outputs": "array of {worker, task, output_summary, status, duration_ms}",
+        "verifier_results": "array of {verifier, target, verdict, issues, iteration}",
+        "error_records": "array of {step, error_type, worker, retry_count, recovery}",
+        "final_delivery": "string"
+      }
+    },
+    "project": {
+      "name": "项目记忆",
+      "description": "跨会话的项目级记忆，记录规则、约束、约定",
+      "active": true,
+      "storage": "memory/project_memory.md",
+      "format": "markdown",
+      "content": [
+        "项目规则（平台选择、集成策略等）",
+        "工程约定（命名、目录、代码风格）",
+        "角色映射表（角色→动物→性格→职责）",
+        "验证策略（默认级别、特殊规则）",
+        "经验教训（踩坑记录、最佳实践）"
+      ],
+      "write_trigger": "每次任务完成后更新",
+      "read_trigger": "新任务开始时读取"
+    },
+    "experience": {
+      "name": "经验记忆",
+      "description": "跨项目的经验复用，记录踩坑教训和最佳实践",
+      "active": true,
+      "storage": "memory/experience/",
+      "format": "jsonl + topics.md",
+      "content": [
+        "踩坑教训（什么做了不工作）",
+        "最佳实践（什么做了效果好）",
+        "角色适配经验（哪个角色适合什么任务）",
+        "工具使用技巧（Skill/MCP 的使用经验）"
+      ],
+      "write_trigger": "任务完成后总裁提炼经验写入",
+      "read_trigger": "新任务开始时按关键词检索"
+    }
+  },
+
+  "retrieval": {
+    "method": "关键词搜索 + 主题索引",
+    "on_new_task": [
+      "读取 project_memory.md 获取项目规则和约定",
+      "按任务关键词搜索 experience/ 下的经验记录",
+      "将检索到的相关经验作为上下文传给 Worker"
+    ]
+  }
+}

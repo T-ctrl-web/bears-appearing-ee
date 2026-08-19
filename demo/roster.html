@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>熊出没集团 · 员工花名册</title>
+  <style>
+    /* ===== 基础主题变量（与需求说明书同源 · 深色） ===== */
+    :root{
+      --bg:#0d1117;  --bg2:#161b22;  --bg3:#1c2333;
+      --ink:#e6edf3; --muted:#7d8590; --rule:#30363d;
+      --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+
+      /* —— 三层级语义色 —— */
+      --c-leader:#D4A574;    /* 琥珀金 — 领导层 */
+      --c-worker:#3fb950;    /* 森林绿 — 执行层 */
+      --c-verifier:#f0883e;  /* 警示橙 — 验证层 */
+    }
+
+    *{ box-sizing:border-box; margin:0; padding:0; }
+
+    html{ -webkit-text-size-adjust:100%; }
+
+    body{
+      font-family:var(--font);
+      background:var(--bg);
+      color:var(--ink);
+      line-height:1.6;
+      min-height:100vh;
+    }
+
+    /* ===== 标题栏 ===== */
+    .topbar{
+      background:linear-gradient(180deg,var(--bg3) 0%,var(--bg2) 100%);
+      border-bottom:1px solid var(--rule);
+      padding:1.5rem 1.25rem;
+    }
+    .topbar__inner{
+      max-width:1080px;
+      margin:0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:1rem;
+      flex-wrap:wrap;
+    }
+    .brand{ display:flex; align-items:center; gap:.85rem; }
+    .brand__logo{
+      font-size:2.4rem;
+      line-height:1;
+      filter:drop-shadow(0 2px 6px rgba(0,0,0,.5));
+    }
+    .brand__text h1{
+      font-size:1.45rem;
+      font-weight:700;
+      letter-spacing:.02em;
+    }
+    .brand__text p{
+      color:var(--muted);
+      font-size:.9rem;
+    }
+    .topbar__meta{ display:flex; gap:.5rem; flex-wrap:wrap; }
+    .chip{
+      display:inline-block;
+      padding:.3rem .75rem;
+      border:1px solid var(--rule);
+      border-radius:999px;
+      font-size:.78rem;
+      color:var(--muted);
+      background:rgba(255,255,255,.03);
+    }
+
+    /* ===== 主体 ===== */
+    .page{
+      max-width:1080px;
+      margin:0 auto;
+      padding:2rem 1.25rem 3rem;
+    }
+
+    /* ===== 分组 ===== */
+    .group{ margin-bottom:2.25rem; }
+    .group__head{
+      display:flex;
+      align-items:center;
+      gap:.75rem;
+      margin-bottom:1.1rem;
+    }
+    .group__head::before{
+      content:"";
+      width:4px;
+      height:1.25em;
+      border-radius:2px;
+      background:var(--tier-color,var(--c-worker));
+    }
+    [data-tier="leader"]   .group__head{ --tier-color:var(--c-leader); }
+    [data-tier="worker"]   .group__head{ --tier-color:var(--c-worker); }
+    [data-tier="verifier"] .group__head{ --tier-color:var(--c-verifier); }
+
+    .group__head h2{
+      font-size:1.1rem;
+      font-weight:650;
+      letter-spacing:.03em;
+    }
+    .group__count{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:1.6em;
+      height:1.6em;
+      padding:0 .45em;
+      border-radius:999px;
+      background:var(--tier-color);
+      color:#0d1117;
+      font-size:.78rem;
+      font-weight:700;
+    }
+
+    /* ===== 卡片网格（核心响应式：无媒体查询即可自适应） ===== */
+    .group__grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+      gap:1.25rem;
+    }
+
+    /* ===== 单张卡片 ===== */
+    .card{
+      position:relative;
+      background:var(--bg2);
+      border:1px solid var(--rule);
+      border-radius:12px;
+      overflow:hidden;
+      transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    }
+    .card:hover{
+      transform:translateY(-4px);
+      box-shadow:0 10px 28px rgba(0,0,0,.45);
+      border-color:color-mix(in srgb,var(--role-color) 50%,var(--rule));
+    }
+    /* 顶部色条：角色专属色 */
+    .card__bar{
+      height:4px;
+      width:100%;
+      background:var(--role-color);
+      transition:filter .25s ease, box-shadow .25s ease;
+    }
+    .card:hover .card__bar{
+      filter:brightness(1.15);
+      box-shadow:0 0 14px var(--role-color);
+    }
+    .card__body{ padding:1.1rem 1.15rem 1.2rem; }
+
+    .card__head{
+      display:flex;
+      align-items:center;
+      gap:.7rem;
+      margin-bottom:.85rem;
+    }
+    .card__avatar{
+      font-size:1.8rem;
+      line-height:1;
+      flex-shrink:0;
+      width:2.6rem;
+      height:2.6rem;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--bg3);
+      border-radius:10px;
+      border:1px solid var(--rule);
+    }
+    .card__title{ flex:1 1 auto; min-width:0; }
+    .card__name{
+      font-size:1.08rem;
+      font-weight:700;
+      color:var(--role-color);
+      letter-spacing:.02em;
+    }
+    .card__post{
+      display:block;
+      color:var(--muted);
+      font-size:.85rem;
+      margin-top:.1rem;
+    }
+    /* 层级标签：层级色半透明底 + 同色描边 */
+    .card__tag{
+      flex-shrink:0;
+      font-size:.7rem;
+      font-weight:600;
+      padding:.2rem .55rem;
+      border-radius:6px;
+      letter-spacing:.04em;
+      border:1px solid;
+    }
+    .card__tag--leader   { color:var(--c-leader);   background:color-mix(in srgb,var(--c-leader) 18%,transparent);   border-color:color-mix(in srgb,var(--c-leader) 55%,transparent); }
+    .card__tag--worker   { color:var(--c-worker);   background:color-mix(in srgb,var(--c-worker) 18%,transparent);   border-color:color-mix(in srgb,var(--c-worker) 55%,transparent); }
+    .card__tag--verifier { color:var(--c-verifier); background:color-mix(in srgb,var(--c-verifier) 18%,transparent); border-color:color-mix(in srgb,var(--c-verifier) 55%,transparent); }
+
+    .card__meta{
+      display:flex;
+      gap:1.25rem;
+      margin-bottom:.75rem;
+      padding-bottom:.7rem;
+      border-bottom:1px dashed var(--rule);
+    }
+    .card__meta dt{
+      color:var(--muted);
+      font-size:.74rem;
+      margin-bottom:.1rem;
+    }
+    .card__meta dd{
+      font-size:.88rem;
+      color:var(--ink);
+      font-weight:500;
+    }
+    .card__duty{
+      font-size:.9rem;
+      color:#c9d1d9;
+      line-height:1.55;
+    }
+
+    /* ===== 页脚 ===== */
+    .footer{
+      max-width:1080px;
+      margin:0 auto;
+      padding:1.5rem 1.25rem 2.5rem;
+      border-top:1px solid var(--rule);
+      text-align:center;
+      color:var(--muted);
+      font-size:.82rem;
+    }
+    .footer__sub{ margin-top:.3rem; font-size:.78rem; opacity:.8; }
+
+    /* ===== 响应式细节：仅窄屏微调内边距 ===== */
+    @media (max-width:600px){
+      .topbar{ padding:1.1rem 1rem; }
+      .topbar__inner{ justify-content:center; text-align:center; }
+      .brand{ justify-content:center; }
+      .page{ padding:1.25rem 1rem 2rem; }
+      .group__grid{ grid-template-columns:1fr; }
+    }
+
+    /* ===== 无障碍：关闭动效 ===== */
+    @media (prefers-reduced-motion:reduce){
+      .card,.card__bar{ transition:none; }
+      .card:hover{ transform:none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 标题栏 -->
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <span class="brand__logo" aria-hidden="true">🐻</span>
+        <div class="brand__text">
+          <h1>熊出没集团</h1>
+          <p>员工花名册 · MVP 阵容</p>
+        </div>
+      </div>
+      <div class="topbar__meta">
+        <span class="chip">Phase 1 · MVP</span>
+        <span class="chip">7 角色</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主体：三个分组 -->
+  <main class="page">
+    <!-- 分组：Leader -->
+    <section class="group" data-tier="leader">
+      <header class="group__head">
+        <h2>Leader · 领导层</h2>
+        <span class="group__count" id="count-leader">0</span>
+      </header>
+      <div class="group__grid" id="grid-leader"><!-- JS 注入卡片 --></div>
+    </section>
+
+    <!-- 分组：Worker -->
+    <section class="group" data-tier="worker">
+      <header class="group__head">
+        <h2>Worker · 执行层</h2>
+        <span class="group__count" id="count-worker">0</span>
+      </header>
+      <div class="group__grid" id="grid-worker"><!-- JS 注入卡片 --></div>
+    </section>
+
+    <!-- 分组：Verifier -->
+    <section class="group" data-tier="verifier">
+      <header class="group__head">
+        <h2>Verifier · 验证层</h2>
+        <span class="group__count" id="count-verifier">0</span>
+      </header>
+      <div class="group__grid" id="grid-verifier"><!-- JS 注入卡片 --></div>
+    </section>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="footer">
+    <p>熊出没集团 © 2026 · 仿 MAVIS 多 Agent 协作系统</p>
+    <p class="footer__sub">Leader-Worker-Verifier 三层闭环 · Phase 1 MVP</p>
+  </footer>
+
+  <script>
+    /* ===== 数据层：角色数据数组（唯一数据源，改这里即改花名册） ===== */
+    const ROLES = [
+      { name:'熊大',     title:'总裁',    animal:'棕熊',        emoji:'🐻',
+        duty:'接收需求、评估复杂度、拆解、分配、汇总交付',       tier:'leader',   color:'#D4A574' },
+      { name:'光头强',   title:'架构',    animal:'人类·伐木工', emoji:'🧑‍🔧',
+        duty:'技术方案设计',               tier:'worker',   color:'#6B8E23' },
+      { name:'熊二',     title:'开发',    animal:'棕熊',        emoji:'🐻',
+        duty:'代码实现',                   tier:'worker',   color:'#8B4513' },
+      { name:'蹦蹦',     title:'测试',    animal:'松鼠',        emoji:'🐿️',
+        duty:'测试用例与Bug报告',         tier:'worker',   color:'#FF8C00' },
+      { name:'萝卜头',   title:'调试',    animal:'鼹鼠',        emoji:'🐭',
+        duty:'Bug定位与修复',             tier:'worker',   color:'#9B8B6F' },
+      { name:'肥波',     title:'文档',    animal:'肥猫',        emoji:'🐱',
+        duty:'文档编写',                   tier:'worker',   color:'#A9A9A9' },
+      { name:'吉吉国王', title:'代码质检',animal:'猴子',        emoji:'🐒',
+        duty:'Level 1 柔性审查',          tier:'verifier', color:'#FFD700' },
+    ];
+
+    /* HTML 转义，防注入 */
+    function esc(s){
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
+    /* ===== 逻辑层：按 tier 分桶 → 生成卡片 → 挂载到对应分组 ===== */
+    function renderRoster(){
+      const tiers = ['leader','worker','verifier'];
+      const buckets = { leader:[], worker:[], verifier:[] };
+
+      ROLES.forEach(r => {
+        if(buckets[r.tier]) buckets[r.tier].push(r);
+        else console.warn('[roster] tier 值无效，角色被丢弃：', r.name, '→ tier="' + r.tier + '"');
+      });
+
+      tiers.forEach(tier => {
+        const grid = document.getElementById('grid-' + tier);
+        const countEl = document.getElementById('count-' + tier);
+        if(!grid) return;
+
+        grid.innerHTML = buckets[tier].map(r => `
+          <article class="card" style="--role-color:${esc(r.color)}">
+            <div class="card__bar" aria-hidden="true"></div>
+            <div class="card__body">
+              <div class="card__head">
+                <span class="card__avatar" aria-hidden="true">${esc(r.emoji)}</span>
+                <div class="card__title">
+                  <h3 class="card__name">${esc(r.name)}</h3>
+                  <span class="card__post">${esc(r.title)}</span>
+                </div>
+                <span class="card__tag card__tag--${esc(tier)}">${esc(tier.charAt(0).toUpperCase()+tier.slice(1))}</span>
+              </div>
+              <dl class="card__meta">
+                <div><dt>动物类型</dt><dd>${esc(r.animal)}</dd></div>
+              </dl>
+              <p class="card__duty">${esc(r.duty)}</p>
+            </div>
+          </article>
+        `).join('');
+
+        if(countEl) countEl.textContent = buckets[tier].length;
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', renderRoster);
+  </script>
+</body>
+</html>

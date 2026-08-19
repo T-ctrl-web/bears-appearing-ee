@@ -1,0 +1,76 @@
+{
+  "version": "2.0.0",
+  "description": "验证规则配置 — Phase 2 三级验证全部启用",
+
+  "levels": {
+    "level_1": {
+      "name": "柔性审查",
+      "description": "Verifier 对产出做基础检查，发现问题提出建议但不强制驳回",
+      "active": true,
+      "max_iterations": 1,
+      "assigned_to": "吉吉国王",
+      "checklist": [
+        "产出是否完整覆盖任务要求",
+        "代码/文档是否有明显语法错误",
+        "是否有遗漏的边界情况",
+        "产出格式是否符合规范"
+      ],
+      "on_fail": "输出审查报告，标注问题，建议修改但允许放行"
+    },
+    "level_2": {
+      "name": "标准审查",
+      "description": "Verifier 对产出做全面检查，发现问题驳回重跑",
+      "active": true,
+      "max_iterations": 2,
+      "assigned_to": "老鳄（设计质检）+ 小狸（质量门禁）",
+      "checklist": [
+        "Level 1 全部项",
+        "代码风格与规范一致性",
+        "性能与可维护性评估",
+        "安全性基础检查",
+        "接口设计合理性",
+        "测试充分性（覆盖率 ≥ 80%）",
+        "模块间集成正确性"
+      ],
+      "on_fail": "驳回，Worker 重新执行，最多 2 次迭代后升级用户"
+    },
+    "level_3": {
+      "name": "强对抗审查",
+      "description": "Verifier 以挑刺心态做对抗式审查，任何不达标都驳回",
+      "active": true,
+      "max_iterations": 3,
+      "assigned_to": "铁掌大师（安全）",
+      "checklist": [
+        "Level 2 全部项",
+        "输入验证完整性（所有外部输入校验）",
+        "注入防护（XSS/SQL注入/命令注入）",
+        "认证授权完整性",
+        "数据泄露检查",
+        "极端边界测试（故意构造异常输入）",
+        "架构安全合理性质疑",
+        "日志安全（不泄露敏感信息）",
+        "依赖安全（第三方依赖漏洞）"
+      ],
+      "on_fail": "凶猛驳回，Worker 重新执行，最多 3 次后终审失败升级用户"
+    }
+  },
+
+  "verifier_assignment": {
+    "code_quality": "吉吉国王",
+    "design_quality": "老鳄",
+    "quality_gate": "小狸",
+    "security": "铁掌大师"
+  },
+
+  "auto_selection": {
+    "enabled": true,
+    "rules": {
+      "simple": null,
+      "medium": "level_1",
+      "complex": "level_2",
+      "security_sensitive": "level_3"
+    }
+  },
+
+  "default_level": "level_1"
+}
