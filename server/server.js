@@ -66,6 +66,26 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 静态文件（图片等）
+  if (req.method === 'GET' && !p.startsWith('/api') && !p.startsWith('/events')) {
+    const relPath = decodeURIComponent(p.replace(/^\//, ''));
+    const filePath = path.join(ROOT, relPath);
+    const ext = path.extname(filePath).toLowerCase();
+    const types = {
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+      '.gif': 'image/gif', '.svg': 'image/svg+xml', '.css': 'text/css',
+      '.js': 'text/javascript', '.ico': 'image/x-icon',
+    };
+    if (types[ext] && fs.existsSync(filePath)) {
+      try {
+        const data = fs.readFileSync(filePath);
+        res.writeHead(200, { 'Content-Type': types[ext], 'Cache-Control': 'max-age=3600' });
+        res.end(data);
+        return;
+      } catch {}
+    }
+  }
+
   // SSE 端点
   if (p === '/events' && req.method === 'GET') {
     res.writeHead(200, {
