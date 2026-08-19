@@ -1,0 +1,7 @@
+- insert:
+  - id: bears-appearing-ee
+    name: dsh-bears-appearing-ee
+    config:
+      serverUrl: 'http://localhost:3120'
+      defaultComplexity: 'medium'
+      maxIterations: 3

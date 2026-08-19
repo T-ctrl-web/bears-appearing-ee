@@ -1,0 +1,15 @@
+{
+  "name": "dsh-bears-appearing-ee",
+  "version": "1.0.0",
+  "description": "熊出没集团 — 多Agent协作系统 DeepSeek Harness 插件",
+  "type": "module",
+  "main": "index.js",
+  "files": ["index.js", "cordis.patch.yml"],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": ["dsh-plugin", "multi-agent", "team", "collaboration"],
+  "license": "MIT"
+}
