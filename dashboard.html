@@ -482,6 +482,72 @@ body {
 .log-entry .role-tag.worker { background: rgba(74,196,160,0.15); color: var(--accent2); }
 .log-entry .role-tag.verifier { background: rgba(240,160,75,0.15); color: var(--warn); }
 
+/* === 办公室场景（MAVIS 风格走动交互） === */
+#officeStage {
+  position: relative;
+  height: clamp(420px, 62vh, 560px);
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(108,142,239,0.08), transparent 55%),
+    linear-gradient(180deg, #272e41 0%, #202636 60%, #1b2131 100%);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 32px;
+  display: none;
+}
+#officeStage.show { display: block; }
+
+.office-zone {
+  position: absolute;
+  border: 1.5px dashed rgba(136,146,166,0.32);
+  border-radius: 12px;
+  background: rgba(45,53,72,0.32);
+}
+.office-zone .zone-label {
+  position: absolute; top: 7px; left: 11px;
+  font-size: 11px; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap;
+}
+
+.bear {
+  position: absolute;
+  width: 56px; margin-left: -28px; margin-top: -34px;
+  transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95);
+  z-index: 10; cursor: pointer; text-align: center; user-select: none;
+}
+.bear-sprite { transition: transform 0.25s; }
+.bear img {
+  width: 44px; height: 44px; object-fit: cover; border-radius: 50%;
+  border: 2px solid var(--bg3); background: var(--bg3);
+  display: block; margin: 0 auto;
+  transition: border-color .35s, box-shadow .35s;
+}
+.bear .bear-name { font-size: 10px; color: var(--muted); margin-top: 3px; white-space: nowrap; transition: color .3s; }
+.bear.executing img { border-color: var(--accent2); box-shadow: 0 0 14px rgba(74,196,160,0.55); }
+.bear.executing .bear-name { color: var(--accent2); }
+.bear.waiting img { border-color: var(--warn); box-shadow: 0 0 10px rgba(240,160,75,0.4); }
+.bear.done img { border-color: var(--success); box-shadow: 0 0 12px rgba(74,196,122,0.45); }
+.bear.failed img { border-color: var(--danger); box-shadow: 0 0 14px rgba(232,93,93,0.5); }
+.bear.walking img { animation: bear-bob 0.34s infinite alternate ease-in-out; }
+.bear.walking.left .bear-sprite { transform: scaleX(-1); }
+@keyframes bear-bob { from { transform: translateY(0); } to { transform: translateY(-6px); } }
+
+.bubble {
+  position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: #fff; color: #1a1f2e;
+  font-size: 11px; line-height: 1.45;
+  padding: 5px 10px; border-radius: 9px;
+  max-width: 190px; width: max-content;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  z-index: 30; box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+.bubble.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.bubble::after {
+  content: ''; position: absolute; top: 100%; left: 50%; margin-left: -5px;
+  border: 5px solid transparent; border-top-color: #fff;
+}
+
 /* === 响应式 === */
 @media (max-width: 768px) {
   .role-grid { grid-template-columns: repeat(2, 1fr); }
@@ -520,6 +586,15 @@ body {
 
 <!-- 主区域 -->
 <div class="main">
+
+  <!-- 办公室场景（MAVIS 风格走动交互） -->
+  <div id="officeStage">
+    <div class="office-zone" style="left:2%; top:5%; width:26%; height:38%"><span class="zone-label">☕ 休息区</span></div>
+    <div class="office-zone" style="left:31%; top:5%; width:38%; height:55%"><span class="zone-label">💻 工位区</span></div>
+    <div class="office-zone" style="left:72%; top:5%; width:26%; height:42%"><span class="zone-label">🔍 验证区</span></div>
+    <div class="office-zone" style="left:31%; top:64%; width:38%; height:31%"><span class="zone-label">🔧 修复区</span></div>
+    <div class="office-zone" style="left:72%; top:51%; width:26%; height:44%"><span class="zone-label">📦 交付区 · 总裁办公室</span></div>
+  </div>
 
   <!-- Leader 组 -->
   <div class="group">
@@ -581,6 +656,7 @@ body {
   <button class="ctrl-btn" id="resetBtn" onclick="resetBoard()">重置</button>
   <button class="ctrl-btn primary" id="playBtn" onclick="playDemo()">演示任务流程</button>
   <button class="ctrl-btn live-btn" id="liveBtn" onclick="toggleLiveMode()">实时模式: OFF</button>
+  <button class="ctrl-btn" id="viewBtn" onclick="toggleOfficeMode()">办公室场景</button>
   <span class="ws-status" id="wsStatus">⚪ 未连接</span>
 </div>
 
@@ -690,6 +766,7 @@ function addLog(roleId, message) {
   const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
   logs.push({ ts, roleId, tier, message });
   renderLogs();
+  OfficeScene.speak(roleId, message);
 }
 
 function renderLogs() {
@@ -724,6 +801,7 @@ function setRoleStatus(roleId, status, task) {
     roleStates[roleId].status = status;
     roleStates[roleId].task = task || '';
     renderRoles();
+    OfficeScene.updateRole(roleId, status, task);
   }
 }
 
@@ -869,11 +947,205 @@ async function playDemo() {
 function resetBoard() {
   if (playing) return;
   initState();
+  OfficeScene.resetAll();
   renderRoles();
   renderTimeline(DEMO_WAVES, 0);
   updateProgress(0, 0);
   document.getElementById('taskName').textContent = '空闲';
   document.getElementById('logArea').innerHTML = '';
+}
+
+// === 办公室场景（MAVIS 风格走动交互） ===
+const OfficeScene = (() => {
+  const bears = {};
+
+  // 各区域点位（百分比坐标，以熊中心点定位）
+  const DESKS = [
+    {x:37,y:16},{x:50,y:16},{x:63,y:16},
+    {x:37,y:32},{x:50,y:32},{x:63,y:32},
+    {x:37,y:48},{x:50,y:48},{x:63,y:48},
+  ];
+  const VERIFY_SPOTS = [{x:77,y:16},{x:86,y:13},{x:94,y:22},{x:85,y:31}];
+  const CEO_DESK = {x:85,y:60};
+  const DELIVERY_SPOT = {x:81,y:82};
+  const FIX_SPOTS = [{x:37,y:76},{x:50,y:80},{x:63,y:76},{x:44,y:88}];
+  const IDLE_SPOTS = [
+    {x:8,y:16},{x:17,y:12},{x:25,y:18},{x:9,y:30},{x:20,y:32},{x:15,y:23},
+    {x:9,y:58},{x:20,y:62},{x:6,y:90},{x:16,y:90},{x:27,y:30},{x:13,y:44},{x:24,y:50},{x:10,y:74},
+  ];
+  const GREETINGS = ['嗨！','忙啥呢？','加油！','嘿嘿~','喝咖啡吗？','辛苦啦！','今天状态不错'];
+  const STATUS_CLASS = { idle:'idle', executing:'executing', waiting:'waiting', done:'done', failed:'failed' };
+
+  let inited = false;
+
+  function jitter(spot, amp = 3) {
+    return { x: spot.x + (Math.random() * amp * 2 - amp), y: spot.y + (Math.random() * amp * 2 - amp) };
+  }
+
+  function createBear(role) {
+    const el = document.createElement('div');
+    el.className = 'bear';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    const sprite = document.createElement('div');
+    sprite.className = 'bear-sprite';
+    const img = document.createElement('img');
+    img.src = role.img; img.alt = role.name; img.loading = 'lazy';
+    sprite.appendChild(img);
+    const name = document.createElement('div');
+    name.className = 'bear-name'; name.textContent = role.name;
+    el.appendChild(bubble); el.appendChild(sprite); el.appendChild(name);
+    el.addEventListener('click', () => showDetail(role, roleStates[role.id] || { status: 'idle', task: '' }));
+    document.getElementById('officeStage').appendChild(el);
+    return { el, bubble, role, pos: null, status: 'idle', bubbleTimer: null, walkTimer: null, doneTimer: null, greetCooldown: {} };
+  }
+
+  // 走到指定点位（带走路动画与朝向翻转）
+  function place(bear, spot, opts = {}) {
+    if (!spot) return;
+    spot = opts.jitter ? jitter(spot) : spot;
+    if (bear.pos && Math.abs(bear.pos.x - spot.x) < 0.5 && Math.abs(bear.pos.y - spot.y) < 0.5) return;
+    if (bear.pos) {
+      bear.el.classList.toggle('left', spot.x < bear.pos.x);
+      bear.el.classList.add('walking');
+      clearTimeout(bear.walkTimer);
+      bear.walkTimer = setTimeout(() => {
+        bear.el.classList.remove('walking');
+        maybeGreet(bear);
+      }, 1650);
+    }
+    bear.el.style.left = spot.x + '%';
+    bear.el.style.top = spot.y + '%';
+    bear.pos = { ...spot };
+  }
+
+  // 擦肩而过打招呼（动态交互）
+  function maybeGreet(bear) {
+    for (const id in bears) {
+      if (id === bear.role.id) continue;
+      const other = bears[id];
+      if (!bear.pos || !other.pos) continue;
+      const dx = Math.abs(bear.pos.x - other.pos.x);
+      const dy = Math.abs(bear.pos.y - other.pos.y);
+      const now = Date.now();
+      const key = [bear.role.id, id].sort().join('|');
+      if (dx < 6 && dy < 9 && (!bear.greetCooldown[key] || now - bear.greetCooldown[key] > 9000)) {
+        bear.greetCooldown[key] = now;
+        other.greetCooldown[key] = now;
+        speak(bear.role.id, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], 2200);
+        setTimeout(() => speak(id, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], 2200), 500);
+        break;
+      }
+    }
+  }
+
+  // 说话气泡（textContent 防注入）
+  function speak(roleId, message, duration = 3600) {
+    const bear = bears[roleId];
+    if (!bear || !message) return;
+    const text = String(message);
+    bear.bubble.textContent = text.length > 42 ? text.slice(0, 42) + '…' : text;
+    bear.bubble.classList.add('show');
+    clearTimeout(bear.bubbleTimer);
+    bear.bubbleTimer = setTimeout(() => bear.bubble.classList.remove('show'), duration);
+  }
+
+  function targetFor(bear, status) {
+    const tier = bear.role.tier;
+    if (status === 'executing') return bear.deskSpot; // leader→总裁办公桌 / verifier→验证区 / worker→工位
+    if (status === 'waiting') return bear.waitSpot;
+    if (status === 'failed') return bear.fixSpot;
+    return bear.idleSpot;
+  }
+
+  // 状态驱动走位：idle→休息区 / executing→各自岗位 / done→交付区后回休息区 / failed→修复区
+  function updateRole(roleId, status, task) {
+    const bear = bears[roleId];
+    if (!bear) return;
+    bear.status = status;
+    const cls = STATUS_CLASS[status] || 'idle';
+    Object.values(STATUS_CLASS).forEach(c => bear.el.classList.toggle(c, c === cls));
+    if (task && status === 'executing') speak(roleId, task, 3000);
+    clearTimeout(bear.doneTimer);
+    if (status === 'done') {
+      place(bear, DELIVERY_SPOT);
+      bear.doneTimer = setTimeout(() => {
+        if (bear.status === 'done') place(bear, bear.idleSpot, { jitter: true });
+      }, 3200);
+    } else {
+      place(bear, targetFor(bear, status));
+    }
+  }
+
+  function resetAll() {
+    for (const id in bears) {
+      const bear = bears[id];
+      bear.status = 'idle';
+      Object.values(STATUS_CLASS).forEach(c => bear.el.classList.remove(c));
+      bear.el.classList.remove('walking', 'left');
+      clearTimeout(bear.bubbleTimer); clearTimeout(bear.walkTimer); clearTimeout(bear.doneTimer);
+      bear.bubble.classList.remove('show');
+      place(bear, bear.idleSpot);
+    }
+  }
+
+  // 任务完成：全员欢呼
+  function celebrate() {
+    Object.keys(bears).forEach((id, i) => {
+      setTimeout(() => speak(id, i % 3 === 0 ? '任务完成！🎉' : '收工！', 3000), i * 180);
+    });
+  }
+
+  // 闲逛：空闲的熊偶尔溜达换位置
+  setInterval(() => {
+    const idle = Object.values(bears).filter(b => b.status === 'idle');
+    if (idle.length && Math.random() < 0.5) {
+      const bear = idle[Math.floor(Math.random() * idle.length)];
+      place(bear, bear.idleSpot, { jitter: true });
+    }
+  }, 5000);
+
+  // 闲聊：两只空闲的熊随机搭话
+  setInterval(() => {
+    const idle = Object.values(bears).filter(b => b.status === 'idle');
+    if (idle.length >= 2 && Math.random() < 0.6) {
+      const a = idle[Math.floor(Math.random() * idle.length)];
+      const b = idle[Math.floor(Math.random() * idle.length)];
+      if (a === b) return;
+      speak(a.role.id, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], 2400);
+      setTimeout(() => speak(b.role.id, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], 2400), 600);
+    }
+  }, 8000);
+
+  function init() {
+    if (inited) return;
+    inited = true;
+    let deskIdx = 0, verifyIdx = 0, idleIdx = 0, fixIdx = 0;
+    ROLES.forEach(role => {
+      const bear = createBear(role);
+      if (role.tier === 'verifier') bear.deskSpot = VERIFY_SPOTS[verifyIdx++ % VERIFY_SPOTS.length];
+      else if (role.tier === 'leader') bear.deskSpot = CEO_DESK;
+      else bear.deskSpot = DESKS[deskIdx++ % DESKS.length];
+      bear.idleSpot = IDLE_SPOTS[idleIdx++ % IDLE_SPOTS.length];
+      bear.fixSpot = FIX_SPOTS[fixIdx++ % FIX_SPOTS.length];
+      bear.waitSpot = jitter(bear.deskSpot, 6);
+      place(bear, bear.idleSpot);
+    });
+  }
+
+  return { init, updateRole, speak, resetAll, celebrate };
+})();
+
+// 视图切换：卡片 ↔ 办公室场景
+let officeMode = false;
+function toggleOfficeMode() {
+  officeMode = !officeMode;
+  OfficeScene.init();
+  document.getElementById('officeStage').classList.toggle('show', officeMode);
+  document.querySelectorAll('.main .group, .main .timeline-section').forEach(el => {
+    el.style.display = officeMode ? 'none' : '';
+  });
+  document.getElementById('viewBtn').textContent = officeMode ? '卡片视图' : '办公室场景';
 }
 
 // === SSE 实时模式（角色 ID 与服务器 state.js 统一为拼音体系，无需映射） ===
@@ -937,6 +1209,9 @@ function connectSSE() {
   };
 }
 
+let lastSpokenLogId = null;
+let celebrated = false;
+
 function applyServerState(s) {
   if (s.task) {
     document.getElementById('taskName').textContent = s.task.title || '执行中';
@@ -946,6 +1221,7 @@ function applyServerState(s) {
     if (roleStates[r.id]) {
       roleStates[r.id].status = STATUS_MAP[r.status] || 'idle';
       roleStates[r.id].task = r.task || '';
+      OfficeScene.updateRole(r.id, STATUS_MAP[r.status] || 'idle', r.task);
     }
   });
   renderRoles();
@@ -956,6 +1232,15 @@ function applyServerState(s) {
   }
 
   if (s.logs && s.logs.length > 0) {
+    // 新增日志驱动场景说话气泡（首次连接静默初始化基线）
+    if (lastSpokenLogId === null) {
+      lastSpokenLogId = s.logs[s.logs.length - 1].id || null;
+    } else {
+      const idx = s.logs.findIndex(l => l.id === lastSpokenLogId);
+      const fresh = idx >= 0 ? s.logs.slice(idx + 1) : s.logs.slice(-3);
+      fresh.forEach(l => { if (l.roleId) OfficeScene.speak(l.roleId, l.message); });
+      lastSpokenLogId = s.logs[s.logs.length - 1].id || lastSpokenLogId;
+    }
     logs = s.logs.map(l => {
       const role = ROLES.find(r => r.id === l.roleId);
       const d = new Date(l.timestamp);
@@ -968,10 +1253,18 @@ function applyServerState(s) {
     });
     renderLogs();
   }
+
+  // 任务完成：全员欢呼庆祝
+  if (s.task && s.task.status === 'completed' && !celebrated) {
+    celebrated = true;
+    OfficeScene.celebrate();
+  }
+  if (s.task && s.task.status !== 'completed') celebrated = false;
 }
 
 // === 初始化 ===
 initState();
+OfficeScene.init();
 renderRoles();
 renderTimeline(DEMO_WAVES, 0);
 updateProgress(0, 0);
