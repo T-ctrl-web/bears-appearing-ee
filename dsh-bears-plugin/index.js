@@ -1,39 +1,194 @@
 /**
  * 熊出没集团 — DeepSeek Harness 插件
  *
- * 注册 7 个工具，让 DeepSeek 能够调用熊出没集团的多Agent协作能力：
- *   bears.start       — 启动任务（Leader评估+拆解）
- *   bears.dispatch    — 派发Worker执行
- *   bears.verify      — 触发Verifier验证
- *   bears.iterate     — 驳回重跑
- *   bears.deliver     — 交付任务结果
- *   bears.status      — 查询当前状态
- *   bears.reset       — 重置任务
+ * 注册 8 个工具，让 DeepSeek 能够调用熊出没集团的多Agent协作能力：
+ *   bears.start          — 启动任务（Leader评估+拆解）
+ *   bears.dispatch       — 派发Worker执行
+ *   bears.complete-worker — Worker完成
+ *   bears.verify         — 触发Verifier验证
+ *   bears.iterate        — 驳回重跑
+ *   bears.deliver        — 交付任务结果
+ *   bears.status         — 查询当前状态
+ *   bears.reset          — 重置任务
  *
- * 所有工具通过 HTTP API 调用本地服务器（默认 http://localhost:3120）
- * 状态机保证流程合法性，非法操作自动拒绝
+ * 插件加载时自动启动内置服务器，无需手动开启
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import http from 'node:http'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export const name = 'bears-appearing-ee'
 export const inject = ['tools']
 
+const PORT = 3120
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.resolve(__dirname, '..')
+
 export function apply(ctx, config) {
-  const serverUrl = config?.serverUrl || 'http://localhost:3120'
+  const serverUrl = config?.serverUrl || `http://localhost:${PORT}`
+
+  // === 自动启动内置服务器 ===
+  let serverStarted = false
+
+  function startServer() {
+    if (serverStarted) return
+    serverStarted = true
+
+    // 动态加载状态模块
+    const stateModule = loadStateModule()
+    const { TeamRunner } = loadTeamRunner()
+    const runner = new TeamRunner(stateModule)
+
+    const sseClients = new Set()
+    stateModule.subscribe(() => {
+      const data = JSON.stringify(stateModule.getState())
+      for (const res of sseClients) {
+        try { res.write(`event: update\ndata: ${data}\n\n`); } catch {}
+      }
+    })
+
+    const server = http.createServer(async (req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+      if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+
+      const url = new URL(req.url, `http://localhost:${PORT}`)
+      const p = url.pathname
+
+      function sendJson(code, data) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' })
+        res.end(JSON.stringify(data))
+      }
+      function readBody() {
+        return new Promise((resolve) => {
+          let b = ''; req.on('data', c => b += c); req.on('end', () => {
+            try { resolve(b ? JSON.parse(b) : {}) } catch { resolve({}) }
+          })
+        })
+      }
+
+      // 看板页面
+      if (p === '/' || p === '/dashboard') {
+        try {
+          const html = fs.readFileSync(path.join(ROOT, 'dashboard.html'), 'utf-8')
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+          res.end(html)
+        } catch { sendJson(404, { error: 'dashboard.html not found' }) }
+        return
+      }
+
+      // SSE
+      if (p === '/events' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*' })
+        res.write(`event: init\ndata: ${JSON.stringify(stateModule.getState())}\n\n`)
+        sseClients.add(res)
+        req.on('close', () => sseClients.delete(res))
+        return
+      }
+
+      // 静态文件
+      if (req.method === 'GET' && !p.startsWith('/api') && !p.startsWith('/events')) {
+        const relPath = decodeURIComponent(p.replace(/^\//, ''))
+        const fp = path.join(ROOT, relPath)
+        const ext = path.extname(fp).toLowerCase()
+        const types = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.css': 'text/css', '.js': 'text/javascript', '.ico': 'image/x-icon' }
+        if (types[ext] && fs.existsSync(fp)) {
+          try { res.writeHead(200, { 'Content-Type': types[ext], 'Cache-Control': 'max-age=3600' }); res.end(fs.readFileSync(fp)); return } catch {}
+        }
+      }
+
+      // 状态机 API
+      if (p.startsWith('/api/sm/') && req.method === 'POST') {
+        const body = await readBody()
+        const action = p.replace('/api/sm/', '')
+        try {
+          let result
+          switch (action) {
+            case 'start': runner.startTask(body); result = { ok: true, state: runner.currentState }; break
+            case 'draft': runner.startDrafting(body.waves || null); result = { ok: true, state: runner.currentState }; break
+            case 'complete-draft': runner.completeDrafting(); result = { ok: true, state: runner.currentState }; break
+            case 'dispatch': runner.dispatchWave(body.waveIndex, body.waveData); result = { ok: true, state: runner.currentState }; break
+            case 'complete-worker': runner.completeWorker(body.roleId, body.result); result = { ok: true, state: runner.currentState }; break
+            case 'verify': runner.startVerification(body.verifierId); result = { ok: true, state: runner.currentState }; break
+            case 'complete-verify': runner.completeVerification(body.passed, body.issues || []); result = { ok: true, state: runner.currentState }; break
+            case 'complete-iteration': runner.completeIteration(); result = { ok: true, state: runner.currentState }; break
+            case 'deliver': runner.deliver(body.result); result = { ok: true, state: runner.currentState }; break
+            case 'reset': runner.reset(); result = { ok: true, state: 'IDLE' }; break
+            default: result = { error: 'Unknown action: ' + action }
+          }
+          sendJson(200, result)
+        } catch (e) { sendJson(400, { error: e.message }) }
+        return
+      }
+      if (p === '/api/sm/snapshot' && req.method === 'GET') { sendJson(200, runner.getSnapshot()); return; }
+      if (p === '/api/state' && req.method === 'GET') { sendJson(200, stateModule.getState()); return; }
+      if (p === '/api/roles' && req.method === 'GET') { sendJson(200, stateModule.ROLES); return; }
+      if (p === '/api/logs' && req.method === 'GET') { sendJson(200, stateModule.getState().logs); return; }
+      if (p === '/api/reset' && req.method === 'POST') { runner.reset(); sendJson(200, { ok: true }); return; }
+      if (p === '/api/role/status' && req.method === 'POST') {
+        const body = await readBody()
+        stateModule.setRoleStatus(body.roleId, body.status, body.task)
+        sendJson(200, { ok: true }); return
+      }
+      if (p === '/api/log' && req.method === 'POST') {
+        const body = await readBody()
+        stateModule.addLog(body.level || 'info', body.message, body.roleId)
+        sendJson(200, { ok: true }); return
+      }
+      sendJson(404, { error: 'Not found', path: p })
+    })
+
+    server.listen(PORT, () => {
+      console.log(`[bears-appearing-ee] 内置服务器已启动：http://localhost:${PORT}`)
+      console.log(`[bears-appearing-ee] 看板地址：http://localhost:${PORT}`)
+    })
+
+    ctx.effect(() => { server.close(); console.log('[bears-appearing-ee] 服务器已关闭') })
+  }
+
+  function loadStateModule() {
+    const statePath = path.join(ROOT, 'server', 'state.js')
+    // CJS 模块动态加载
+    const Module = (await import('node:module')).default || require('module')
+    return require(statePath)
+  }
+
+  function loadTeamRunner() {
+    const runnerPath = path.join(ROOT, 'engine', 'team-runner.js')
+    return require(runnerPath)
+  }
+
+  // 使用 createRequire 处理 ESM 中的 CJS require
+  import('node:module').then(Module => {
+    const require = Module.createRequire(import.meta.url)
+    global._bearsRequire = require
+    startServer()
+  })
 
   async function callAPI(path, body = {}) {
-    const res = await fetch(`${serverUrl}/api/sm/${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    return res.json()
+    try {
+      const res = await fetch(`${serverUrl}/api/sm/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      return res.json()
+    } catch (e) {
+      return { error: `服务器未就绪: ${e.message}` }
+    }
   }
 
   async function getState() {
-    const res = await fetch(`${serverUrl}/api/sm/snapshot`)
-    return res.json()
+    try {
+      const res = await fetch(`${serverUrl}/api/sm/snapshot`)
+      return res.json()
+    } catch (e) {
+      return { error: `服务器未就绪: ${e.message}` }
+    }
   }
 
   // 1. 启动任务
