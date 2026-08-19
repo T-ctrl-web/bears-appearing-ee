@@ -22,6 +22,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const REAL_CONFIG_PATH = path.join(ROOT, 'config', 'harness-config.json');
 const TEAM_CONFIG_PATH = path.join(ROOT, 'config', 'team-engine.json');
+const VERIFICATION_RULES_PATH = path.join(ROOT, 'config', 'verification-rules.json');
 
 const PLACEHOLDER_KEYS = new Set(['', 'YOUR_DEEPSEEK_API_KEY']);
 
@@ -61,6 +62,14 @@ function loadRoleMap() {
   }
 }
 
+function loadVerificationRules() {
+  try {
+    return JSON.parse(fs.readFileSync(VERIFICATION_RULES_PATH, 'utf-8'));
+  } catch {
+    return {};
+  }
+}
+
 // 角色定义（roles/*.md 全文）作为 system prompt，让 LLM 以该角色身份执行
 function buildSystemPrompt(roleInfo) {
   try {
@@ -75,6 +84,71 @@ function buildUserPrompt({ roleInfo, task, context }) {
   if (context) parts.push(`## 上下文\n${context}`);
   parts.push(`## 输出要求\n以 ${roleInfo.name || roleInfo.id}（${roleInfo.role || 'Worker'}）的身份完成上述任务，直接给出你的产出内容，不要解释你将要做什么。`);
   return parts.join('\n\n');
+}
+
+// Verifier system prompt：角色 MD 全文（人设+审查清单）+ 本次级别规则（来自 verification-rules.json）
+function buildVerifierSystemPrompt(roleInfo, levelRules) {
+  let prompt;
+  try {
+    prompt = fs.readFileSync(path.join(ROOT, roleInfo.file), 'utf-8');
+  } catch {
+    prompt = `你是熊出没集团的${roleInfo.name || roleInfo.id}，担任${roleInfo.role || 'Verifier'}。以对抗心态审查产出。`;
+  }
+  if (levelRules) {
+    const checklist = (levelRules.checklist || []).map((c, i) => `${i + 1}. ${c}`).join('\n');
+    prompt += `\n\n## 本次审查级别规则\n- 级别：${levelRules.name}\n- 说明：${levelRules.description}\n- 审查清单：\n${checklist}\n- 不通过时：${levelRules.on_fail}`;
+  }
+  return prompt;
+}
+
+function buildVerifierUserPrompt({ task, outputs, iteration, maxIterations }) {
+  const outputsText = Object.entries(outputs || {})
+    .map(([rid, out]) => `### 角色 ${rid}\n${out == null ? '（执行失败，无产出）' : out}`)
+    .join('\n\n') || '（无产出）';
+  return [
+    `## 待审查任务\n${task || '（未提供任务描述）'}`,
+    `## Worker 产出\n${outputsText}`,
+    `## 迭代轮次\n第 ${iteration} 轮（最多 ${maxIterations} 轮，超限终审失败）`,
+    '## 输出要求\n先简要给出审查意见（按你的角色风格），最后必须单独一行输出合法 JSON 作为最终结论：\n{"passed": false, "issues": ["问题1", "问题2"], "verdict": "一句话结论"}\npassed=true 表示通过放行；passed=false 表示驳回重跑。issues 为发现的问题列表（通过时可为空数组）。',
+  ].join('\n\n');
+}
+
+function normalizeVerdict(o) {
+  return {
+    passed: o.passed === true || o.passed === 'true',
+    issues: Array.isArray(o.issues) ? o.issues.map(String) : [],
+    verdict: o.verdict != null ? String(o.verdict) : '',
+    parsed: true,
+  };
+}
+
+/**
+ * 从 LLM 审查回复中稳健解析结论：
+ *   1) 逐个尝试文本中的扁平 JSON 对象（取最后一个含 passed 的）
+ *   2) 宽松截取首个 { 到末尾 } 的片段（允许 issues 含嵌套）
+ *   3) 关键词回退（驳回/不通过 → false；通过/放行 → true）
+ *   4) 均失败 → 默认放行并标记 parsed:false（避免格式抖动卡死流程）
+ */
+function parseVerdict(text) {
+  const s = String(text || '');
+  const flats = s.match(/\{[^{}]*\}/g) || [];
+  for (let i = flats.length - 1; i >= 0; i--) {
+    try {
+      const o = JSON.parse(flats[i]);
+      if ('passed' in o) return normalizeVerdict(o);
+    } catch { /* 尝试下一个 */ }
+  }
+  const m = s.match(/\{[\s\S]*"passed"[\s\S]*\}/);
+  if (m) {
+    try { return normalizeVerdict(JSON.parse(m[0])); } catch { /* 落入关键词回退 */ }
+  }
+  if (/(驳回|不通过|不予放行|不达标|failed)/i.test(s)) {
+    return { passed: false, issues: [], verdict: '（关键词判定：驳回）', parsed: false };
+  }
+  if (/(通过|放行|passed)/i.test(s)) {
+    return { passed: true, issues: [], verdict: '（关键词判定：通过）', parsed: false };
+  }
+  return { passed: true, issues: [], verdict: '（无法解析审查结论，默认放行）', parsed: false };
 }
 
 /**
@@ -107,6 +181,7 @@ class HarnessAdapter {
       if (!('engine' in overrides)) this.config.engine = configured ? 'deepseek' : 'mock';
     }
     this.roleMap = loadRoleMap();
+    this.verificationRules = loadVerificationRules();
   }
 
   get engineStatus() {
@@ -115,24 +190,11 @@ class HarnessAdapter {
   }
 
   /**
-   * 执行单个 Worker 任务，返回统一结果格式（见设计文档「输出（统一格式）」）
-   * @param {object} input - { roleId, task, context }
-   * @returns {Promise<{roleId, assignee, engine, status, output, duration_ms, error}>}
+   * 底层对话调用（Worker 与 Verifier 共用）
+   * @returns {Promise<{ok: boolean, content?: string, error?: string, duration_ms: number}>}
    */
-  async executeWorker({ roleId, task, context }) {
+  async _chatCompletion(systemPrompt, userPrompt) {
     const started = Date.now();
-    const roleInfo = this.roleMap[roleId] || { id: roleId, name: roleId, role: '' };
-    const base = { roleId, assignee: roleInfo.name || roleId, engine: this.config.engine, duration_ms: 0, error: null };
-
-    // mock 引擎：演示模式，确定性产出，不发真实请求
-    if (this.config.engine === 'mock') {
-      return {
-        ...base,
-        status: 'success',
-        output: `[mock] ${roleInfo.name || roleId}（${roleInfo.role || 'Worker'}）完成任务：${task || '（无描述）'}`,
-      };
-    }
-
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
     try {
@@ -145,8 +207,8 @@ class HarnessAdapter {
         body: JSON.stringify({
           model: this.config.model,
           messages: [
-            { role: 'system', content: buildSystemPrompt(roleInfo) },
-            { role: 'user', content: buildUserPrompt({ roleInfo, task, context }) },
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
           ],
           max_tokens: this.config.maxTokens,
           temperature: this.config.temperature,
@@ -156,21 +218,79 @@ class HarnessAdapter {
 
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
-        return { ...base, status: 'failed', output: null, error: `API ${res.status}: ${errText.slice(0, 200)}`, duration_ms: Date.now() - started };
+        return { ok: false, error: `API ${res.status}: ${errText.slice(0, 200)}`, duration_ms: Date.now() - started };
       }
 
       const data = await res.json();
-      const output = data.choices?.[0]?.message?.content || '';
-      if (!output) {
-        return { ...base, status: 'failed', output: null, error: 'API 返回空内容', duration_ms: Date.now() - started };
+      const content = data.choices?.[0]?.message?.content || '';
+      if (!content) {
+        return { ok: false, error: 'API 返回空内容', duration_ms: Date.now() - started };
       }
-      return { ...base, status: 'success', output, duration_ms: Date.now() - started };
+      return { ok: true, content, duration_ms: Date.now() - started };
     } catch (e) {
       const msg = e.name === 'AbortError' ? `超时（${this.config.timeoutMs}ms）` : e.message;
-      return { ...base, status: 'failed', output: null, error: msg, duration_ms: Date.now() - started };
+      return { ok: false, error: msg, duration_ms: Date.now() - started };
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /**
+   * 执行单个 Worker 任务，返回统一结果格式（见设计文档「输出（统一格式）」）
+   * @param {object} input - { roleId, task, context }
+   * @returns {Promise<{roleId, assignee, engine, status, output, duration_ms, error}>}
+   */
+  async executeWorker({ roleId, task, context }) {
+    const roleInfo = this.roleMap[roleId] || { id: roleId, name: roleId, role: '' };
+    const base = { roleId, assignee: roleInfo.name || roleId, engine: this.config.engine, duration_ms: 0, error: null };
+
+    // mock 引擎：演示模式，确定性产出，不发真实请求
+    if (this.config.engine === 'mock') {
+      return {
+        ...base,
+        status: 'success',
+        output: `[mock] ${roleInfo.name || roleId}（${roleInfo.role || 'Worker'}）完成任务：${task || '（无描述）'}`,
+      };
+    }
+
+    const r = await this._chatCompletion(buildSystemPrompt(roleInfo), buildUserPrompt({ roleInfo, task, context }));
+    if (!r.ok) return { ...base, status: 'failed', output: null, error: r.error, duration_ms: r.duration_ms };
+    return { ...base, status: 'success', output: r.content, duration_ms: r.duration_ms };
+  }
+
+  /**
+   * 执行 Verifier 对抗审查（真实 LLM 评审 Worker 产出，返回结构化结论）
+   * @param {object} input - { verifierId, level, task, outputs, iteration, maxIterations }
+   * @returns {Promise<{verifierId, assignee, engine, status, passed, issues, verdict, raw, parsed, duration_ms, error}>}
+   */
+  async executeVerifier({ verifierId, level = 'level_1', task, outputs, iteration = 1, maxIterations = 3 }) {
+    const roleInfo = this.roleMap[verifierId] || { id: verifierId, name: verifierId, role: 'Verifier' };
+    const levelRules = (this.verificationRules.levels || {})[level] || null;
+    const base = { verifierId, assignee: roleInfo.name || verifierId, engine: this.config.engine, duration_ms: 0, error: null };
+
+    // mock 引擎：存在失败/空产出则驳回，否则通过（确定性，便于演示与测试）
+    if (this.config.engine === 'mock') {
+      const vals = Object.values(outputs || {});
+      const hasFailure = vals.length === 0 || vals.some(v => v == null || String(v).trim() === '' || String(v).startsWith('执行失败'));
+      return {
+        ...base,
+        status: 'success',
+        parsed: true,
+        passed: !hasFailure,
+        issues: hasFailure ? ['存在执行失败或空产出'] : [],
+        verdict: hasFailure ? '（mock）存在失败产出，驳回' : '（mock）审查通过',
+        raw: '',
+      };
+    }
+
+    const r = await this._chatCompletion(
+      buildVerifierSystemPrompt(roleInfo, levelRules),
+      buildVerifierUserPrompt({ task, outputs, iteration, maxIterations })
+    );
+    if (!r.ok) {
+      return { ...base, status: 'failed', passed: null, issues: [], verdict: '', raw: null, parsed: false, error: r.error, duration_ms: r.duration_ms };
+    }
+    return { ...base, status: 'success', ...parseVerdict(r.content), raw: r.content, duration_ms: r.duration_ms };
   }
 }
 

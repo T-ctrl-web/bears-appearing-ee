@@ -53,6 +53,16 @@ test('状态机：非法流转被拒绝并抛错', () => {
   assert.throws(() => sm2.transition('DRAFTING'), /非法状态转换/);
 });
 
+test('状态机：VERIFYING → DISPATCHING 合法（多波次流水线）', () => {
+  const sm = new StateMachine(stubCtx());
+  sm.transition('DRAFTING');
+  sm.transition('DISPATCHING');
+  sm.transition('EXECUTING');
+  sm.transition('VERIFYING');
+  sm.transition('DISPATCHING'); // 验证通过后继续下一波
+  sm.transition('EXECUTING');
+});
+
 test('状态机：reset 回到 IDLE 并清空历史', () => {
   const sm = new StateMachine(stubCtx());
   sm.transition('DRAFTING');
@@ -177,43 +187,143 @@ test('集成：评估结论写入日志', () => {
 
 // === Worker 真实执行闭环（autoExecute + harness） ===
 
-function fakeHarness(behavior) {
-  return {
+function fakeHarness(opts = {}) {
+  let verifyCalls = 0;
+  const h = {
     config: { engine: 'mock' },
-    executeWorker: async ({ roleId, task }) => {
-      if (behavior === 'fail') {
+    async executeWorker({ roleId, task }) {
+      if (opts.workerFail) {
         return { roleId, assignee: roleId, engine: 'mock', status: 'failed', output: null, duration_ms: 1, error: 'API 500: boom' };
       }
       return { roleId, assignee: roleId, engine: 'mock', status: 'success', output: `产出:${roleId}:${task}`, duration_ms: 1, error: null };
     },
+    async executeVerifier({ verifierId }) {
+      verifyCalls++;
+      if (opts.verifierError) {
+        return { verifierId, assignee: verifierId, engine: 'mock', status: 'failed', passed: null, issues: [], verdict: '', raw: null, parsed: false, error: 'API 500', duration_ms: 1 };
+      }
+      if (opts.reject === 'always') {
+        return { verifierId, assignee: verifierId, engine: 'mock', status: 'success', passed: false, issues: ['问题A'], verdict: '驳回', duration_ms: 1 };
+      }
+      if (opts.reject === 'once') {
+        const passed = verifyCalls > 1;
+        return { verifierId, assignee: verifierId, engine: 'mock', status: 'success', passed, issues: passed ? [] : ['首次驳回'], verdict: passed ? '通过' : '驳回', duration_ms: 1 };
+      }
+      return { verifierId, assignee: verifierId, engine: 'mock', status: 'success', passed: true, issues: [], verdict: '通过', duration_ms: 1 };
+    },
   };
+  h.verifyCalls = () => verifyCalls;
+  return h;
 }
 
-test('闭环：autoExecute 派发后 Worker 由 harness 执行并自动进入 VERIFYING', async () => {
+async function waitState(r, expected, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (expected.includes(r.currentState)) return r.currentState;
+    await new Promise(res => setTimeout(res, 5));
+  }
+  throw new Error(`等待状态超时：当前 ${r.currentState}，期望 ${expected.join('/')}`);
+}
+
+test('闭环：autoExecute 全自动（执行→审查→交付）单波次', async () => {
   const r = new TeamRunner(stateModule, { harness: fakeHarness() });
   r.reset();
-  r.startTask({ requirement: '开发登录页', autoExecute: true });
+  r.startTask({ requirement: '开发登录页', complexity: 'complex', autoExecute: true });
   r.completeDrafting();
   r.dispatchWave(0, { name: 'w1', roles: ['guangtouqiang', 'xionger'], task: '实现登录' });
   assert.equal(r.currentState, 'EXECUTING'); // 异步执行中
-  await r._execution;
-  assert.equal(r.currentState, 'VERIFYING'); // 全部完成自动进入验证
-  const snap = r.getSnapshot();
-  assert.equal(snap.waveOutputs[0].guangtouqiang, '产出:guangtouqiang:实现登录');
-  assert.equal(snap.waveOutputs[0].xionger, '产出:xionger:实现登录');
+  await waitState(r, ['COMPLETED']);
+  assert.equal(r.currentState, 'COMPLETED');
+  assert.equal(r.currentTask.status, 'completed');
+  assert.equal(r.currentTask.verification.passed, true);
+  assert.match(r.currentTask.result, /产出:guangtouqiang:实现登录/); // 自动交付聚合产出
 });
 
-test('闭环：harness 执行失败也推进波次（记录失败并进入验证）', async () => {
-  const r = new TeamRunner(stateModule, { harness: fakeHarness('fail') });
+test('闭环：Worker 执行失败 → 审查驳回 → 迭代重跑仍失败 → FAILED', async () => {
+  const r = new TeamRunner(stateModule, { harness: fakeHarness({ workerFail: true, reject: 'always' }) });
   r.reset();
-  r.startTask({ requirement: '困难任务', autoExecute: true });
+  r.startTask({ requirement: '困难任务', complexity: 'complex', autoExecute: true });
   r.completeDrafting();
   r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: '失败场景' });
-  await r._execution;
-  assert.equal(r.currentState, 'VERIFYING');
-  assert.equal(r.getSnapshot().waveOutputs[0].xionger, null);
+  await waitState(r, ['FAILED']);
+  assert.equal(r.currentTask.status, 'failed');
   const logs = stateModule.getState().logs;
   assert.ok(logs.some(l => l.level === 'error' && /执行失败/.test(l.message)), '应有失败日志');
+});
+
+// === Verifier 自动对抗审查闭环 ===
+
+test('审查闭环：驳回后自动重跑，二次通过后自动交付', async () => {
+  const h = fakeHarness({ reject: 'once' });
+  const r = new TeamRunner(stateModule, { harness: h });
+  r.reset();
+  r.startTask({ requirement: '开发功能', complexity: 'complex', autoExecute: true });
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: '实现功能' });
+  await waitState(r, ['COMPLETED', 'FAILED']);
+  assert.equal(r.currentState, 'COMPLETED');
+  assert.equal(h.verifyCalls(), 2); // 驳回1次 + 通过1次
+  assert.equal(r.getSnapshot().iterationCount, 1);
+  assert.equal(r.currentTask.verification.passed, true);
+  assert.deepEqual(r.currentTask.verification.issues, []);
+});
+
+test('审查闭环：L1 柔性审查不强制驳回（问题仅作建议）', async () => {
+  const r = new TeamRunner(stateModule, { harness: fakeHarness({ reject: 'always' }) });
+  r.reset();
+  // medium → level_1 柔性
+  r.startTask({ requirement: '新增导出页面', complexity: 'medium', autoExecute: true });
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: '实现页面' });
+  await waitState(r, ['COMPLETED', 'FAILED']);
+  assert.equal(r.currentState, 'COMPLETED');
+  assert.equal(r.currentTask.verification.passed, true);
+  assert.equal(r.currentTask.verification.issues.length, 1); // 建议保留但不驳回
+});
+
+test('审查闭环：持续驳回达迭代上限 → FAILED（有界）', async () => {
+  const h = fakeHarness({ reject: 'always' });
+  const r = new TeamRunner(stateModule, { harness: h });
+  r.reset();
+  r.startTask({ requirement: '跨模块重构', complexity: 'complex', autoExecute: true });
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: '重构' });
+  await waitState(r, ['FAILED']);
+  assert.equal(r.currentState, 'FAILED');
+  assert.ok(h.verifyCalls() <= 4, `审查次数 ${h.verifyCalls()} 应被迭代上限约束`);
+  assert.equal(r.currentTask.status, 'failed');
+});
+
+test('审查闭环：审查 API 失败自动放行防卡死', async () => {
+  const r = new TeamRunner(stateModule, { harness: fakeHarness({ verifierError: true }) });
+  r.reset();
+  r.startTask({ requirement: '开发功能', complexity: 'complex', autoExecute: true });
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: 'x' });
+  await waitState(r, ['COMPLETED', 'FAILED']);
+  assert.equal(r.currentState, 'COMPLETED');
+  const logs = stateModule.getState().logs;
+  assert.ok(logs.some(l => l.level === 'error' && /审查调用失败/.test(l.message)), '应有审查失败日志');
+});
+
+test('审查闭环：多波次流水线（验证通过自动派发下一波）', async () => {
+  const h = fakeHarness();
+  const r = new TeamRunner(stateModule, { harness: h });
+  r.reset();
+  r.startTask({ requirement: '开发完整功能', complexity: 'complex', autoExecute: true });
+  r.startDrafting([
+    { name: 'w1', roles: ['guangtouqiang'], task: '设计架构' },
+    { name: 'w2', roles: ['xionger'], task: '编码实现' },
+  ]);
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['guangtouqiang'], task: '设计架构' });
+  await waitState(r, ['COMPLETED', 'FAILED']);
+  assert.equal(r.currentState, 'COMPLETED');
+  assert.equal(h.verifyCalls(), 2); // 每波各审一次
+  const snap = r.getSnapshot();
+  assert.equal(snap.waveOutputs.length, 2);
+  assert.match(snap.waveOutputs[0].guangtouqiang, /设计架构/);
+  assert.match(snap.waveOutputs[1].xionger, /编码实现/);
 });
 
 test('闭环：执行期间 reset，过期回调被安全忽略', async () => {

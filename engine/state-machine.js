@@ -4,7 +4,8 @@
  *
  * 状态流转：
  *   IDLE → DRAFTING → DISPATCHING → EXECUTING → VERIFYING → DELIVERING → COMPLETED
- *                                    ↑              │
+ *                                    ↑              │  │
+ *                                    │              │  └──→ DISPATCHING（多波次：验证通过继续下一波）
  *                                    └────────────  │ (驳回重跑)
  *                                                   ↓
  *                                                ITERATING → DISPATCHING (重试)
@@ -29,7 +30,7 @@ const TRANSITIONS = {
   DRAFTING:    ['DISPATCHING', 'COMPLETED', 'FAILED'],
   DISPATCHING: ['EXECUTING', 'DELIVERING', 'FAILED'],
   EXECUTING:   ['VERIFYING', 'DELIVERING', 'ITERATING', 'FAILED'],
-  VERIFYING:   ['DELIVERING', 'ITERATING', 'FAILED'],
+  VERIFYING:   ['DELIVERING', 'DISPATCHING', 'ITERATING', 'FAILED'], // DISPATCHING：多波次流水线，验证通过后派发下一波
   ITERATING:   ['DISPATCHING', 'FAILED'],
   DELIVERING:  ['COMPLETED', 'FAILED'],
   COMPLETED:   [],

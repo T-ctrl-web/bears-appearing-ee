@@ -25,6 +25,7 @@ class TeamRunner {
     this.machine = null;
     this.ctx = null;
     this._execution = null; // 进行中的波次异步执行 Promise（测试/运维可 await）
+    this._verification = null; // 进行中的异步审查 Promise
   }
 
   get currentTask() { return this.ctx?.task || null; }
@@ -61,6 +62,7 @@ class TeamRunner {
     this.sm.resetTask();
     this.ctx = this._createContext(taskInfo);
     this._execution = null;
+    this._verification = null;
     // autoExecute：由 harness 真实执行 Worker 任务（需同时具备 harness）
     this.autoExecute = !!(taskInfo.autoExecute && this.harness);
     this.machine = new StateMachine(this.ctx);
@@ -164,8 +166,118 @@ class TeamRunner {
       this.sm.setWaveStatus(this.ctx.currentWave, 'done');
       this.ctx.log('info', `波次${this.ctx.currentWave + 1}全部完成`, null);
       this.machine.transition('VERIFYING');
+      this._maybeAutoVerify(wave); // Verifier 真实 LLM 对抗审查闭环
     }
     return this;
+  }
+
+  /**
+   * 解析本次验证的级别与 Verifier：
+   *   优先取复杂度评估结论（assessment.verification），否则按 complexity 映射，默认 L1 吉吉国王
+   */
+  _resolveVerification() {
+    const t = this.ctx.task;
+    const av = t.assessment?.verification;
+    const level = av?.level || { medium: 'level_1', complex: 'level_2' }[t.complexity] || 'level_1';
+    const verifierId = (av?.verifiers || [])[0]
+      || { medium: 'jiji', complex: 'laoe' }[t.complexity]
+      || this.ctx.currentVerifier
+      || 'jiji';
+    return { level, verifierId };
+  }
+
+  /**
+   * Verifier 自动对抗审查闭环：
+   *   审查通过 → 有下一波则继续派发（多波次流水线），否则自动交付
+   *   审查驳回 → ITERATING（萝卜头修复）→ 自动重派当前波次（携带驳回问题上下文）→ 再次执行与审查
+   *   迭代超限由状态机 ITERATING entry action 终止为 FAILED
+   *   L1 柔性审查按规则不强制驳回（问题仅作建议）
+   */
+  _maybeAutoVerify(wave) {
+    if (!this.autoExecute || !this.harness) return null;
+    const { level, verifierId } = this._resolveVerification();
+    this.ctx.currentVerifier = verifierId;
+    const task = wave.task || this.ctx.task.requirement || this.ctx.task.title || '';
+
+    this._verification = (async () => {
+      this.ctx.log('info', `${this.ctx.getRoleName(verifierId)} 开始${level === 'level_3' ? '强对抗' : ''}审查（${level}，第${this.ctx.iterationCount + 1}轮）`, verifierId);
+      const verdict = await this.harness.executeVerifier({
+        verifierId,
+        level,
+        task,
+        outputs: wave.outputs || {},
+        iteration: this.ctx.iterationCount + 1,
+        maxIterations: this.ctx.maxIterations,
+      });
+      if (!this.ctx || this.currentState === 'IDLE') return verdict; // 任务已被重置，丢弃过期结论
+
+      // 审查调用本身失败：放行防卡死，但明确记录错误
+      let passed;
+      if (verdict.status === 'failed') {
+        passed = true;
+        this.ctx.log('error', `审查调用失败，本轮自动放行（${verdict.error}）`, verifierId);
+      } else {
+        passed = verdict.passed;
+      }
+
+      // L1 柔性审查：问题仅作建议，不强制驳回（verification-rules.json level_1.on_fail）
+      if (!passed && level === 'level_1' && verdict.status !== 'failed') {
+        passed = true;
+        this.ctx.log('info', `L1 柔性审查：${(verdict.issues || []).length}条问题仅作建议，不驳回`, verifierId);
+      }
+
+      this.ctx.task.verification = {
+        verifierId, level, passed,
+        issues: verdict.issues || [],
+        verdict: verdict.verdict || '',
+        iteration: this.ctx.iterationCount + 1,
+      };
+
+      if (passed) {
+        const nextIndex = this.ctx.currentWave + 1;
+        const nextWave = this.ctx.waves[nextIndex];
+        if (nextWave && Array.isArray(nextWave.roles) && nextWave.roles.length) {
+          // 多波次流水线：验证通过，继续派发下一波
+          this.sm.setRoleStatus(verifierId, 'DONE', '验证通过');
+          this.ctx.log('info', `${this.ctx.getRoleName(verifierId)} 审查通过，继续派发波次${nextIndex + 1}`, verifierId);
+          this.machine.transition('DISPATCHING');
+          this.dispatchWave(nextIndex, nextWave);
+        } else {
+          // 末波通过：走标准验证通过路径并自动交付
+          this.completeVerification(true);
+          this.ctx.log('info', '全部波次完成且验证通过，自动交付', 'xiongda');
+          this.deliver(this._aggregateOutputs());
+        }
+      } else {
+        this.completeVerification(false, verdict.issues || []);
+        // 自动驳回重跑：萝卜头修复后重派当前波次（携带驳回问题）
+        if (this.currentState === 'ITERATING') {
+          this.completeIteration();
+          const fixCtx = (verdict.issues || []).map((s, i) => `${i + 1}. ${s}`).join('\n');
+          this.ctx.log('info', `重派波次${this.ctx.currentWave + 1}，Worker 需修复驳回问题`, 'xiongda');
+          this.dispatchWave(this.ctx.currentWave, {
+            ...wave,
+            context: `${wave.context || ''}\n\n## 上一轮驳回问题（必须修复）\n${fixCtx}`.trim(),
+          });
+        }
+      }
+      return verdict;
+    })().catch((err) => {
+      if (this.ctx) this.ctx.log('error', `自动验证异常：${err.message}`, null);
+      return null;
+    });
+    return this._verification;
+  }
+
+  /** 汇总所有波次产出为交付物文本 */
+  _aggregateOutputs() {
+    const parts = [];
+    (this.ctx.waves || []).forEach((w, i) => {
+      const outs = Object.entries(w.outputs || {})
+        .map(([rid, out]) => `### ${this.ctx.getRoleName(rid)}\n${out ?? '（执行失败）'}`);
+      if (outs.length) parts.push(`## 波次${i + 1}\n${outs.join('\n\n')}`);
+    });
+    return parts.join('\n\n') || '（无产出）';
   }
 
   startVerification(verifierId) {
@@ -228,6 +340,7 @@ class TeamRunner {
     this.ctx = null;
     this.machine = null;
     this._execution = null;
+    this._verification = null;
     this.autoExecute = false;
     return this;
   }

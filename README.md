@@ -98,6 +98,7 @@
 
 - **DeepSeek harness**：多引擎调度，TRAE + DeepSeek API 路由，自动降级
 - **Worker 真实执行闭环**：`autoExecute` 模式下派发波次后由 harness 真实调用 LLM（角色 MD 全文作为 system prompt），完成后自动进入验证，最多 3 并发
+- **Verifier 真实对抗审查闭环**：Worker 完成后由对应级别 Verifier 真实 LLM 审查产出（角色人设 + verification-rules 清单），结构化结论 `{passed, issues, verdict}`；驳回自动重跑（携带问题上下文）、多波次自动流水、末波自动交付、迭代超限终审 FAILED
 - **飞书 IM 集成**：秒回确认 + 任务派发 + 进度通知 + 交付通知
 - **纸片人工作模式**：14角色可视化看板，实时状态展示，任务流程演示
 
@@ -118,7 +119,9 @@ curl -X POST localhost:3120/api/sm/complete-draft -H "Content-Type: application/
 curl -X POST localhost:3120/api/sm/dispatch -H "Content-Type: application/json" \
   -d '{"waveIndex":0,"waveData":{"roles":["guangtouqiang","xionger"],"task":"设计并实现登录页"}}'
 # Worker 并行真实调用 DeepSeek，全部完成后自动进入 VERIFYING
-# 产出快照：GET /api/sm/snapshot（waveOutputs）；引擎状态：GET /api/harness/status
+# Verifier（按复杂度选级：medium→吉吉国王L1 / complex→老鳄L2 / 安全→铁掌大师L3）
+# 真实 LLM 对抗审查，驳回自动重跑、末波自动交付，全程无需人工干预
+# 产出快照：GET /api/sm/snapshot（waveOutputs + task.verification）；引擎状态：GET /api/harness/status
 ```
 
 未配置 API Key 时自动降级 **mock 演示模式**（确定性产出，不发真实请求）。
