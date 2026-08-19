@@ -1,0 +1,10 @@
+{
+  "name": "bears-appearing-ee-server",
+  "version": "1.0.0",
+  "description": "熊出没集团纸片人工作看板本地服务器（零依赖）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "push": "node push.js"
+  }
+}

@@ -488,6 +488,20 @@ body {
   .topbar { flex-direction: column; align-items: flex-start; }
   .progress-section { width: 100%; }
 }
+
+/* === 实时模式按钮 === */
+.live-btn { border: 1px solid var(--accent2) !important; color: var(--accent2) !important; }
+.live-btn.active { background: var(--accent2) !important; color: #1a1f2e !important; font-weight: 700; }
+
+/* === WebSocket 状态 === */
+.ws-status { font-size: 12px; padding: 4px 10px; border-radius: 6px; background: var(--bg3); white-space: nowrap; }
+.ws-status.connecting { color: var(--warn); }
+.ws-status.connected { color: var(--success); }
+.ws-status.disconnected { color: var(--warn); }
+.ws-status.error { color: var(--danger); }
+
+/* === 控制栏 === */
+.controls { display: flex; align-items: center; gap: 12px; padding: 12px 24px; border-top: 1px solid var(--rule); flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -566,6 +580,8 @@ body {
 <div class="controls">
   <button class="ctrl-btn" id="resetBtn" onclick="resetBoard()">重置</button>
   <button class="ctrl-btn primary" id="playBtn" onclick="playDemo()">演示任务流程</button>
+  <button class="ctrl-btn live-btn" id="liveBtn" onclick="toggleLiveMode()">实时模式: OFF</button>
+  <span class="ws-status" id="wsStatus">⚪ 未连接</span>
 </div>
 
 <script>
@@ -858,6 +874,108 @@ function resetBoard() {
   updateProgress(0, 0);
   document.getElementById('taskName').textContent = '空闲';
   document.getElementById('logArea').innerHTML = '';
+}
+
+// === SSE 实时模式 ===
+const ROLE_ID_MAP = {
+  'xiongda': 'bear-ceo', 'guangtouqiang': 'architect', 'xionger': 'implementer',
+  'bengbeng': 'test-engineer', 'luobotou': 'debugger', 'feibo': 'documentation',
+  'cuihua': 'ui-designer', 'tutu': 'visual-designer', 'tuotuo': 'sysadmin',
+  'maomao': 'research', 'jiji': 'code-reviewer', 'laoe': 'design-reviewer',
+  'xiaoli': 'quality-gate', 'tiezhang': 'security',
+};
+const STATUS_MAP = { 'IDLE': 'idle', 'WORKING': 'executing', 'WAITING': 'waiting', 'DONE': 'done', 'FAILED': 'failed' };
+
+let evtSource = null;
+let liveMode = false;
+let sseReconnectTimer = null;
+
+function toggleLiveMode() {
+  liveMode = !liveMode;
+  const btn = document.getElementById('liveBtn');
+  const status = document.getElementById('wsStatus');
+  if (liveMode) {
+    btn.textContent = '实时模式: ON';
+    btn.classList.add('active');
+    connectSSE();
+  } else {
+    btn.textContent = '实时模式: OFF';
+    btn.classList.remove('active');
+    if (evtSource) { evtSource.close(); evtSource = null; }
+    if (sseReconnectTimer) { clearTimeout(sseReconnectTimer); sseReconnectTimer = null; }
+    status.textContent = '⚪ 未连接';
+    status.className = 'ws-status';
+  }
+}
+
+function connectSSE() {
+  const status = document.getElementById('wsStatus');
+  status.textContent = '🟡 连接中...';
+  status.className = 'ws-status connecting';
+
+  try {
+    evtSource = new EventSource('http://localhost:3120/events');
+  } catch (e) {
+    status.textContent = '🔴 连接失败';
+    status.className = 'ws-status error';
+    return;
+  }
+
+  evtSource.onopen = () => {
+    status.textContent = '🟢 已连接';
+    status.className = 'ws-status connected';
+  };
+
+  evtSource.addEventListener('init', (e) => {
+    try { applyServerState(JSON.parse(e.data)); } catch {}
+  });
+
+  evtSource.addEventListener('update', (e) => {
+    try { applyServerState(JSON.parse(e.data)); } catch {}
+  });
+
+  evtSource.onerror = () => {
+    status.textContent = '🟠 已断开，重连中...';
+    status.className = 'ws-status disconnected';
+    if (evtSource) { evtSource.close(); evtSource = null; }
+    if (liveMode) {
+      sseReconnectTimer = setTimeout(connectSSE, 3000);
+    }
+  };
+}
+
+function applyServerState(s) {
+  if (s.task) {
+    document.getElementById('taskName').textContent = s.task.title || '执行中';
+  }
+
+  s.roles.forEach(r => {
+    const localId = ROLE_ID_MAP[r.id];
+    if (localId && roleStates[localId]) {
+      roleStates[localId].status = STATUS_MAP[r.status] || 'idle';
+      roleStates[localId].task = r.task || '';
+    }
+  });
+  renderRoles();
+
+  if (s.waves && s.waves.length > 0) {
+    renderTimeline(s.waves.map(w => w.title || (w.roles ? w.roles.join(', ') : '')), s.currentWave + 1);
+    updateProgress(s.currentWave + 1, s.waves.length);
+  }
+
+  if (s.logs && s.logs.length > 0) {
+    logs = s.logs.map(l => {
+      const role = ROLES.find(r => r.id === ROLE_ID_MAP[l.roleId] || r.id === l.roleId);
+      const d = new Date(l.timestamp);
+      return {
+        ts: `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`,
+        roleId: ROLE_ID_MAP[l.roleId] || l.roleId,
+        tier: role ? role.tier : 'worker',
+        message: l.message,
+      };
+    });
+    renderLogs();
+  }
 }
 
 // === 初始化 ===
