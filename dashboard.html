@@ -820,11 +820,15 @@ async function playDemo() {
   if (playing) return;
   playing = true;
   document.getElementById('playBtn').disabled = true;
+  // 演示自动切入办公室场景，展示角色走位
+  if (!officeMode) toggleOfficeMode();
   document.getElementById('taskName').textContent = '安全登录看板';
   initState();
+  OfficeScene.resetAll();
   renderRoles();
   renderTimeline(DEMO_WAVES, 0);
   updateProgress(0, DEMO_WAVES.length);
+  await new Promise(r => setTimeout(r, 800)); // 等角色就位
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -939,6 +943,7 @@ async function playDemo() {
   setRoleStatus('xiongda', 'done', '交付完成');
   addLog('xiongda', '任务完成！14角色参与，7波次，10/10验收标准通过。');
   updateProgress(7, DEMO_WAVES.length);
+  OfficeScene.celebrate(); // 全员欢呼收工
 
   playing = false;
   document.getElementById('playBtn').disabled = false;
@@ -1052,9 +1057,12 @@ const OfficeScene = (() => {
 
   function targetFor(bear, status) {
     const tier = bear.role.tier;
-    if (status === 'executing') return bear.deskSpot; // leader→总裁办公桌 / verifier→验证区 / worker→工位
+    if (status === 'executing') return bear.deskSpot; // leader→总裁办公桌 / verifier→验证区 / worker→工位（萝卜头→修复区）
     if (status === 'waiting') return bear.waitSpot;
-    if (status === 'failed') return bear.fixSpot;
+    if (status === 'failed') {
+      // Verifier「驳回」是本职工作，留在验证区工位；Worker 失败才进修复区
+      return tier === 'verifier' ? bear.deskSpot : bear.fixSpot;
+    }
     return bear.idleSpot;
   }
 
@@ -1068,7 +1076,7 @@ const OfficeScene = (() => {
     if (task && status === 'executing') speak(roleId, task, 3000);
     clearTimeout(bear.doneTimer);
     if (status === 'done') {
-      place(bear, DELIVERY_SPOT);
+      place(bear, jitter(DELIVERY_SPOT, 6)); // 交付区聚集，带随机散布避免重叠
       bear.doneTimer = setTimeout(() => {
         if (bear.status === 'done') place(bear, bear.idleSpot, { jitter: true });
       }, 3200);
@@ -1123,8 +1131,10 @@ const OfficeScene = (() => {
     let deskIdx = 0, verifyIdx = 0, idleIdx = 0, fixIdx = 0;
     ROLES.forEach(role => {
       const bear = createBear(role);
+      bears[role.id] = bear; // 注册进映射表，供 updateRole/speak/resetAll/celebrate 查找
       if (role.tier === 'verifier') bear.deskSpot = VERIFY_SPOTS[verifyIdx++ % VERIFY_SPOTS.length];
       else if (role.tier === 'leader') bear.deskSpot = CEO_DESK;
+      else if (role.id === 'luobotou') bear.deskSpot = { x: 50, y: 80 }; // 调试岗常驻修复区（他的工作就是修 Bug）
       else bear.deskSpot = DESKS[deskIdx++ % DESKS.length];
       bear.idleSpot = IDLE_SPOTS[idleIdx++ % IDLE_SPOTS.length];
       bear.fixSpot = FIX_SPOTS[fixIdx++ % FIX_SPOTS.length];
