@@ -587,33 +587,33 @@ body {
 <script>
 // === 角色数据 ===
 const ROLES = [
-  { id:'bear-ceo', name:'熊大', duty:'总裁', tier:'leader', animal:'棕熊', char:'乐观勇敢聪明', img:'requirements-spec/assets/char-01-xiongda.jpg', color:'#D4A574',
+  { id:'xiongda', name:'熊大', duty:'总裁', tier:'leader', animal:'棕熊', char:'乐观勇敢聪明', img:'requirements-spec/assets/char-01-xiongda.jpg', color:'#D4A574',
     desc:'接收需求、评估复杂度、拆解、分配、汇总交付' },
-  { id:'architect', name:'光头强', duty:'架构', tier:'worker', animal:'人类·伐木工', char:'发明家脑子活', img:'requirements-spec/assets/char-02-guangtouqiang.jpg', color:'#6B8E23',
+  { id:'guangtouqiang', name:'光头强', duty:'架构', tier:'worker', animal:'人类·伐木工', char:'发明家脑子活', img:'requirements-spec/assets/char-02-guangtouqiang.jpg', color:'#6B8E23',
     desc:'技术方案设计、目录结构、技术选型' },
-  { id:'implementer', name:'熊二', duty:'开发', tier:'worker', animal:'棕熊', char:'憨厚力大贪吃', img:'requirements-spec/assets/char-03-xionger.jpg', color:'#8B4513',
+  { id:'xionger', name:'熊二', duty:'开发', tier:'worker', animal:'棕熊', char:'憨厚力大贪吃', img:'requirements-spec/assets/char-03-xionger.jpg', color:'#8B4513',
     desc:'代码实现、Bug修复' },
-  { id:'debugger', name:'萝卜头', duty:'调试', tier:'worker', animal:'鼹鼠', char:'聪明善于挖掘', img:'requirements-spec/assets/char-04-luobotou.jpg', color:'#9B8B6F',
+  { id:'luobotou', name:'萝卜头', duty:'调试', tier:'worker', animal:'鼹鼠', char:'聪明善于挖掘', img:'requirements-spec/assets/char-04-luobotou.jpg', color:'#9B8B6F',
     desc:'Bug定位、根因分析、挖洞式排查' },
-  { id:'test-engineer', name:'蹦蹦', duty:'测试', tier:'worker', animal:'松鼠', char:'胆小但消息灵通', img:'requirements-spec/assets/char-05-bengbeng.jpg', color:'#FF8C00',
+  { id:'bengbeng', name:'蹦蹦', duty:'测试', tier:'worker', animal:'松鼠', char:'胆小但消息灵通', img:'requirements-spec/assets/char-05-bengbeng.jpg', color:'#FF8C00',
     desc:'测试用例、Bug报告' },
-  { id:'ui-designer', name:'翠花', duty:'界面', tier:'worker', animal:'母熊', char:'美丽动人爱打人', img:'requirements-spec/assets/char-06-cuihua.jpg', color:'#E6B4C4',
+  { id:'cuihua', name:'翠花', duty:'界面', tier:'worker', animal:'母熊', char:'美丽动人爱打人', img:'requirements-spec/assets/char-06-cuihua.jpg', color:'#E6B4C4',
     desc:'UI设计、界面原型' },
-  { id:'visual-designer', name:'涂涂', duty:'视觉', tier:'worker', animal:'猫头鹰', char:'夜视能力极强', img:'requirements-spec/assets/char-07-tutu.jpg', color:'#7B6B8F',
+  { id:'tutu', name:'涂涂', duty:'视觉', tier:'worker', animal:'猫头鹰', char:'夜视能力极强', img:'requirements-spec/assets/char-07-tutu.jpg', color:'#7B6B8F',
     desc:'像素级视觉审查、无障碍检查' },
-  { id:'sysadmin', name:'拖拖', duty:'运维', tier:'worker', animal:'乌龟', char:'性格单纯稳扎稳打', img:'requirements-spec/assets/char-08-tuotuo.jpg', color:'#5F9EA0',
+  { id:'tuotuo', name:'拖拖', duty:'运维', tier:'worker', animal:'乌龟', char:'性格单纯稳扎稳打', img:'requirements-spec/assets/char-08-tuotuo.jpg', color:'#5F9EA0',
     desc:'环境搭建、部署支持、基础设施' },
-  { id:'research', name:'毛毛', duty:'调研', tier:'worker', animal:'金色小猴', char:'吉吉的跟班', img:'requirements-spec/assets/char-09-maomao.jpg', color:'#DAA520',
+  { id:'maomao', name:'毛毛', duty:'调研', tier:'worker', animal:'金色小猴', char:'吉吉的跟班', img:'requirements-spec/assets/char-09-maomao.jpg', color:'#DAA520',
     desc:'技术调研、竞品分析、情报搜集' },
-  { id:'documentation', name:'肥波', duty:'文档', tier:'worker', animal:'肥猫', char:'光头强的宠物', img:'requirements-spec/assets/char-10-feibo.jpg', color:'#A9A9A9',
+  { id:'feibo', name:'肥波', duty:'文档', tier:'worker', animal:'肥猫', char:'光头强的宠物', img:'requirements-spec/assets/char-10-feibo.jpg', color:'#A9A9A9',
     desc:'文档编写、变更记录' },
-  { id:'code-reviewer', name:'吉吉国王', duty:'代码质检', tier:'verifier', animal:'猴子', char:'自封森林之王', img:'requirements-spec/assets/char-11-jjgw.jpg', color:'#FFD700',
+  { id:'jiji', name:'吉吉国王', duty:'代码质检', tier:'verifier', animal:'猴子', char:'自封森林之王', img:'requirements-spec/assets/char-11-jjgw.jpg', color:'#FFD700',
     desc:'Level 1 柔性审查' },
-  { id:'design-reviewer', name:'老鳄', duty:'设计质检', tier:'verifier', animal:'鳄鱼', char:'自称百事通', img:'requirements-spec/assets/char-12-laoe.jpg', color:'#556B2F',
+  { id:'laoe', name:'老鳄', duty:'设计质检', tier:'verifier', animal:'鳄鱼', char:'自称百事通', img:'requirements-spec/assets/char-12-laoe.jpg', color:'#556B2F',
     desc:'Level 2 标准审查（最多2轮）' },
-  { id:'quality-gate', name:'小狸', duty:'质量门禁', tier:'verifier', animal:'狐狸', char:'机灵狡黠', img:'requirements-spec/assets/char-13-xiaoli.jpg', color:'#FF7F50',
+  { id:'xiaoli', name:'小狸', duty:'质量门禁', tier:'verifier', animal:'狐狸', char:'机灵狡黠', img:'requirements-spec/assets/char-13-xiaoli.jpg', color:'#FF7F50',
     desc:'交付前最终把关' },
-  { id:'security', name:'铁掌大师', duty:'安全', tier:'verifier', animal:'东北虎', char:'武功高强', img:'requirements-spec/assets/char-14-tiezhang.jpg', color:'#B22222',
+  { id:'tiezhang', name:'铁掌大师', duty:'安全', tier:'verifier', animal:'东北虎', char:'武功高强', img:'requirements-spec/assets/char-14-tiezhang.jpg', color:'#B22222',
     desc:'Level 3 强对抗审查（最多3轮）' }
 ];
 
@@ -667,8 +667,8 @@ function showDetail(role, state) {
     <div class="detail-row"><span>当前状态</span><span>${statusMap[state.status] || '空闲'}</span></div>
     <div class="detail-row"><span>当前任务</span><span>${state.task || '无'}</span></div>
     <div class="detail-row"><span>职责</span><span>${role.desc}</span></div>
-    <div class="detail-row"><span>验证级别</span><span>${role.tier === 'verifier' ? (role.id === 'code-reviewer' ? 'L1 柔性' : role.id === 'security' ? 'L3 强对抗' : 'L2 标准') : '—'}</span></div>
-    <div class="detail-row"><span>最大迭代</span><span>${role.tier === 'verifier' ? (role.id === 'code-reviewer' ? '1 次' : role.id === 'security' ? '3 次' : '2 次') : '—'}</span></div>
+    <div class="detail-row"><span>验证级别</span><span>${role.tier === 'verifier' ? (role.id === 'jiji' ? 'L1 柔性' : role.id === 'tiezhang' ? 'L3 强对抗' : 'L2 标准') : '—'}</span></div>
+    <div class="detail-row"><span>最大迭代</span><span>${role.tier === 'verifier' ? (role.id === 'jiji' ? '1 次' : role.id === 'tiezhang' ? '3 次' : '2 次') : '—'}</span></div>
   `;
   overlay.classList.add('show');
 }
@@ -751,115 +751,115 @@ async function playDemo() {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // 熊大评估
-  setRoleStatus('bear-ceo', 'executing', '评估复杂度…');
-  addLog('bear-ceo', '收到任务：创建安全登录看板。评估为复杂任务，开始拆解。');
+  setRoleStatus('xiongda', 'executing', '评估复杂度…');
+  addLog('xiongda', '收到任务：创建安全登录看板。评估为复杂任务，开始拆解。');
   await sleep(1500);
-  addLog('bear-ceo', '拆解完成：7个波次，14角色参与，Level 2/3验证。');
-  setRoleStatus('bear-ceo', 'done', '拆解完成');
+  addLog('xiongda', '拆解完成：7个波次，14角色参与，Level 2/3验证。');
+  setRoleStatus('xiongda', 'done', '拆解完成');
   await sleep(500);
 
   // 波次1：拖拖+毛毛
   renderTimeline(DEMO_WAVES, 1);
   updateProgress(1, DEMO_WAVES.length);
-  setRoleStatus('bear-ceo', 'executing', '调度波次1');
-  setRoleStatus('sysadmin', 'executing', '搭建脚手架');
-  setRoleStatus('research', 'executing', '调研安全实践');
-  addLog('sysadmin', '开始搭建项目目录结构…');
-  addLog('research', '开始调研登录安全最佳实践…');
+  setRoleStatus('xiongda', 'executing', '调度波次1');
+  setRoleStatus('tuotuo', 'executing', '搭建脚手架');
+  setRoleStatus('maomao', 'executing', '调研安全实践');
+  addLog('tuotuo', '开始搭建项目目录结构…');
+  addLog('maomao', '开始调研登录安全最佳实践…');
   await sleep(2000);
-  setRoleStatus('sysadmin', 'done', '脚手架完成');
-  setRoleStatus('research', 'done', '调研完成');
-  addLog('sysadmin', '脚手架搭建完毕，7个文件就位。');
-  addLog('research', '调研报告完成，29个信息源，6条建议。');
+  setRoleStatus('tuotuo', 'done', '脚手架完成');
+  setRoleStatus('maomao', 'done', '调研完成');
+  addLog('tuotuo', '脚手架搭建完毕，7个文件就位。');
+  addLog('maomao', '调研报告完成，29个信息源，6条建议。');
   await sleep(500);
 
   // 波次2：光头强
   renderTimeline(DEMO_WAVES, 2);
   updateProgress(2, DEMO_WAVES.length);
-  setRoleStatus('architect', 'executing', '设计架构方案');
-  addLog('architect', '读取调研报告，开始设计三模块架构…');
+  setRoleStatus('guangtouqiang', 'executing', '设计架构方案');
+  addLog('guangtouqiang', '读取调研报告，开始设计三模块架构…');
   await sleep(2000);
-  setRoleStatus('architect', 'done', '架构方案完成');
-  addLog('architect', '架构方案完成：storage/auth/kanban三模块，SHA-256+盐密码存储。');
+  setRoleStatus('guangtouqiang', 'done', '架构方案完成');
+  addLog('guangtouqiang', '架构方案完成：storage/auth/kanban三模块，SHA-256+盐密码存储。');
   await sleep(500);
 
   // 波次3：熊二+翠花
   renderTimeline(DEMO_WAVES, 3);
   updateProgress(3, DEMO_WAVES.length);
-  setRoleStatus('implementer', 'executing', '实现代码');
-  setRoleStatus('ui-designer', 'executing', '设计界面');
-  addLog('implementer', '按架构方案实现6个代码文件…');
-  addLog('ui-designer', '设计"松林蜜光"视觉主题…');
+  setRoleStatus('xionger', 'executing', '实现代码');
+  setRoleStatus('cuihua', 'executing', '设计界面');
+  addLog('xionger', '按架构方案实现6个代码文件…');
+  addLog('cuihua', '设计"松林蜜光"视觉主题…');
   await sleep(2500);
-  setRoleStatus('implementer', 'done', '代码完成');
-  setRoleStatus('ui-designer', 'done', '界面方案完成');
-  addLog('implementer', '6个代码文件实现完毕，自测通过。');
-  addLog('ui-designer', '"松林蜜光"界面方案完成。');
+  setRoleStatus('xionger', 'done', '代码完成');
+  setRoleStatus('cuihua', 'done', '界面方案完成');
+  addLog('xionger', '6个代码文件实现完毕，自测通过。');
+  addLog('cuihua', '"松林蜜光"界面方案完成。');
   await sleep(500);
 
   // 波次4：蹦蹦+肥波+涂涂
   renderTimeline(DEMO_WAVES, 4);
   updateProgress(4, DEMO_WAVES.length);
-  setRoleStatus('test-engineer', 'executing', '编写测试');
-  setRoleStatus('documentation', 'executing', '编写文档');
-  setRoleStatus('visual-designer', 'executing', '视觉审查');
-  addLog('test-engineer', '编写69条测试用例，检查安全漏洞…');
-  addLog('documentation', '编写README使用文档…');
-  addLog('visual-designer', '像素级视觉审查，检查对比度…');
+  setRoleStatus('bengbeng', 'executing', '编写测试');
+  setRoleStatus('feibo', 'executing', '编写文档');
+  setRoleStatus('tutu', 'executing', '视觉审查');
+  addLog('bengbeng', '编写69条测试用例，检查安全漏洞…');
+  addLog('feibo', '编写README使用文档…');
+  addLog('tutu', '像素级视觉审查，检查对比度…');
   await sleep(2500);
-  setRoleStatus('test-engineer', 'done', '发现13个Bug');
-  setRoleStatus('documentation', 'done', '文档完成');
-  setRoleStatus('visual-designer', 'done', '18个视觉问题');
-  addLog('test-engineer', '测试完成：69用例，发现13个Bug（2个P1）。');
-  addLog('documentation', 'README文档完成。');
-  addLog('visual-designer', '视觉审查完成：18个问题，评分4.5/10。');
+  setRoleStatus('bengbeng', 'done', '发现13个Bug');
+  setRoleStatus('feibo', 'done', '文档完成');
+  setRoleStatus('tutu', 'done', '18个视觉问题');
+  addLog('bengbeng', '测试完成：69用例，发现13个Bug（2个P1）。');
+  addLog('feibo', 'README文档完成。');
+  addLog('tutu', '视觉审查完成：18个问题，评分4.5/10。');
   await sleep(500);
 
   // 波次5：老鳄+铁掌大师
   renderTimeline(DEMO_WAVES, 5);
   updateProgress(5, DEMO_WAVES.length);
-  setRoleStatus('design-reviewer', 'executing', 'L2设计质检');
-  setRoleStatus('security', 'executing', 'L3安全审查');
-  addLog('design-reviewer', 'Level 2标准审查：8项检查…');
-  addLog('security', 'Level 3强对抗审查：主动构造攻击向量…');
+  setRoleStatus('laoe', 'executing', 'L2设计质检');
+  setRoleStatus('tiezhang', 'executing', 'L3安全审查');
+  addLog('laoe', 'Level 2标准审查：8项检查…');
+  addLog('tiezhang', 'Level 3强对抗审查：主动构造攻击向量…');
   await sleep(2500);
-  setRoleStatus('design-reviewer', 'failed', '驳回（14问题）');
-  setRoleStatus('security', 'failed', '驳回（16漏洞）');
-  addLog('design-reviewer', '驳回！14个设计问题，4/8项不通过。');
-  addLog('security', '凶猛驳回！16个安全漏洞，3严重+3高危。零密码可接管账户！');
+  setRoleStatus('laoe', 'failed', '驳回（14问题）');
+  setRoleStatus('tiezhang', 'failed', '驳回（16漏洞）');
+  addLog('laoe', '驳回！14个设计问题，4/8项不通过。');
+  addLog('tiezhang', '凶猛驳回！16个安全漏洞，3严重+3高危。零密码可接管账户！');
   await sleep(800);
-  addLog('bear-ceo', '验证驳回，迭代第1轮。派发萝卜头修复。');
-  setRoleStatus('bear-ceo', 'executing', '驳回重跑');
+  addLog('xiongda', '验证驳回，迭代第1轮。派发萝卜头修复。');
+  setRoleStatus('xiongda', 'executing', '驳回重跑');
   await sleep(500);
 
   // 波次6：萝卜头
   renderTimeline(DEMO_WAVES, 6);
   updateProgress(6, DEMO_WAVES.length);
-  setRoleStatus('debugger', 'executing', '修复13项问题');
-  addLog('debugger', '开始修复：V-01 token校验、V-02 权限保护、V-03 PBKDF2…');
+  setRoleStatus('luobotou', 'executing', '修复13项问题');
+  addLog('luobotou', '开始修复：V-01 token校验、V-02 权限保护、V-03 PBKDF2…');
   await sleep(2500);
-  setRoleStatus('debugger', 'done', '13项全部修复');
-  setRoleStatus('design-reviewer', 'idle', '');
-  setRoleStatus('security', 'idle', '');
-  addLog('debugger', '修复完成：7个P0+4个P1+2个额外，共13项全部焊死。');
+  setRoleStatus('luobotou', 'done', '13项全部修复');
+  setRoleStatus('laoe', 'idle', '');
+  setRoleStatus('tiezhang', 'idle', '');
+  addLog('luobotou', '修复完成：7个P0+4个P1+2个额外，共13项全部焊死。');
   await sleep(500);
 
   // 波次7：小狸
   renderTimeline(DEMO_WAVES, 7);
   updateProgress(7, DEMO_WAVES.length);
-  setRoleStatus('quality-gate', 'executing', '质量门禁');
-  addLog('quality-gate', '最终质量门禁检查：8项逐项核对…');
+  setRoleStatus('xiaoli', 'executing', '质量门禁');
+  addLog('xiaoli', '最终质量门禁检查：8项逐项核对…');
   await sleep(2000);
-  setRoleStatus('quality-gate', 'done', '不予放行→总裁放行');
-  addLog('quality-gate', 'P0/P1全部修复，但5个阻断项（文档不一致+P2/P3未修）。');
+  setRoleStatus('xiaoli', 'done', '不予放行→总裁放行');
+  addLog('xiaoli', 'P0/P1全部修复，但5个阻断项（文档不一致+P2/P3未修）。');
   await sleep(500);
 
   // 熊大交付
-  setRoleStatus('bear-ceo', 'executing', '汇总交付');
-  addLog('bear-ceo', '总裁裁定：P0安全达标，P2/P3待后续。强制放行交付。');
+  setRoleStatus('xiongda', 'executing', '汇总交付');
+  addLog('xiongda', '总裁裁定：P0安全达标，P2/P3待后续。强制放行交付。');
   await sleep(1500);
-  setRoleStatus('bear-ceo', 'done', '交付完成');
-  addLog('bear-ceo', '任务完成！14角色参与，7波次，10/10验收标准通过。');
+  setRoleStatus('xiongda', 'done', '交付完成');
+  addLog('xiongda', '任务完成！14角色参与，7波次，10/10验收标准通过。');
   updateProgress(7, DEMO_WAVES.length);
 
   playing = false;
@@ -876,14 +876,7 @@ function resetBoard() {
   document.getElementById('logArea').innerHTML = '';
 }
 
-// === SSE 实时模式 ===
-const ROLE_ID_MAP = {
-  'xiongda': 'bear-ceo', 'guangtouqiang': 'architect', 'xionger': 'implementer',
-  'bengbeng': 'test-engineer', 'luobotou': 'debugger', 'feibo': 'documentation',
-  'cuihua': 'ui-designer', 'tutu': 'visual-designer', 'tuotuo': 'sysadmin',
-  'maomao': 'research', 'jiji': 'code-reviewer', 'laoe': 'design-reviewer',
-  'xiaoli': 'quality-gate', 'tiezhang': 'security',
-};
+// === SSE 实时模式（角色 ID 与服务器 state.js 统一为拼音体系，无需映射） ===
 const STATUS_MAP = { 'IDLE': 'idle', 'WORKING': 'executing', 'WAITING': 'waiting', 'DONE': 'done', 'FAILED': 'failed' };
 
 let evtSource = null;
@@ -950,10 +943,9 @@ function applyServerState(s) {
   }
 
   s.roles.forEach(r => {
-    const localId = ROLE_ID_MAP[r.id];
-    if (localId && roleStates[localId]) {
-      roleStates[localId].status = STATUS_MAP[r.status] || 'idle';
-      roleStates[localId].task = r.task || '';
+    if (roleStates[r.id]) {
+      roleStates[r.id].status = STATUS_MAP[r.status] || 'idle';
+      roleStates[r.id].task = r.task || '';
     }
   });
   renderRoles();
@@ -965,11 +957,11 @@ function applyServerState(s) {
 
   if (s.logs && s.logs.length > 0) {
     logs = s.logs.map(l => {
-      const role = ROLES.find(r => r.id === ROLE_ID_MAP[l.roleId] || r.id === l.roleId);
+      const role = ROLES.find(r => r.id === l.roleId);
       const d = new Date(l.timestamp);
       return {
         ts: `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`,
-        roleId: ROLE_ID_MAP[l.roleId] || l.roleId,
+        roleId: l.roleId,
         tier: role ? role.tier : 'worker',
         message: l.message,
       };

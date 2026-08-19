@@ -15,10 +15,14 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { createRequire } from 'node:module'
 import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+// ESM 中加载 CJS 模块（server/state.js、engine/team-runner.js 均为 CommonJS）
+const require = createRequire(import.meta.url)
 
 export const name = 'bears-appearing-ee'
 export const inject = ['tools']
@@ -151,23 +155,15 @@ export function apply(ctx, config) {
   }
 
   function loadStateModule() {
-    const statePath = path.join(ROOT, 'server', 'state.js')
-    // CJS 模块动态加载
-    const Module = (await import('node:module')).default || require('module')
-    return require(statePath)
+    return require(path.join(ROOT, 'server', 'state.js'))
   }
 
   function loadTeamRunner() {
-    const runnerPath = path.join(ROOT, 'engine', 'team-runner.js')
-    return require(runnerPath)
+    return require(path.join(ROOT, 'engine', 'team-runner.js'))
   }
 
-  // 使用 createRequire 处理 ESM 中的 CJS require
-  import('node:module').then(Module => {
-    const require = Module.createRequire(import.meta.url)
-    global._bearsRequire = require
-    startServer()
-  })
+  // 启动内置服务器（同步调用，require 已通过 createRequire 就绪）
+  startServer()
 
   async function callAPI(path, body = {}) {
     try {
@@ -200,7 +196,7 @@ export function apply(ctx, config) {
       complexity: {
         type: 'string',
         required: false,
-        description: '复杂度：simple(简单,总裁直接做) / medium(中等,走L1验证) / complex(复杂,走L2/L3验证)',
+        description: '复杂度：simple(简单,总裁直接做) / medium(中等,走L1验证) / complex(复杂,走L2/L3验证)。不传则按任务标题自动评估',
       },
       waves: {
         type: 'array',
@@ -213,7 +209,7 @@ export function apply(ctx, config) {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
-      const r1 = await callAPI('start', { title: args.title, complexity: args.complexity || 'medium' })
+      const r1 = await callAPI('start', { title: args.title, complexity: args.complexity })
       if (!r1.ok) return { error: r1.error }
       if (args.waves) await callAPI('draft', { waves: args.waves })
       const r2 = await callAPI('complete-draft')

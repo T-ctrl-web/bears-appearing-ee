@@ -5,7 +5,7 @@
   "description": "仿 MAVIS 多 Agent 协作系统 — Phase 2 完整版",
 
   "leader": {
-    "id": "bear-ceo",
+    "id": "xiongda",
     "name": "熊大",
     "role": "总裁",
     "character": "棕熊 · 乐观勇敢聪明",
@@ -26,7 +26,7 @@
 
   "workers": [
     {
-      "id": "architect",
+      "id": "guangtouqiang",
       "name": "光头强",
       "role": "架构",
       "character": "人类 · 发明家伐木工",
@@ -35,7 +35,7 @@
       "active": true
     },
     {
-      "id": "implementer",
+      "id": "xionger",
       "name": "熊二",
       "role": "开发",
       "character": "棕熊 · 憨厚力大贪吃",
@@ -44,7 +44,7 @@
       "active": true
     },
     {
-      "id": "test-engineer",
+      "id": "bengbeng",
       "name": "蹦蹦",
       "role": "测试",
       "character": "松鼠 · 胆小但消息灵通",
@@ -53,7 +53,7 @@
       "active": true
     },
     {
-      "id": "debugger",
+      "id": "luobotou",
       "name": "萝卜头",
       "role": "调试",
       "character": "鼹鼠 · 聪明善于挖掘",
@@ -62,7 +62,7 @@
       "active": true
     },
     {
-      "id": "documentation",
+      "id": "feibo",
       "name": "肥波",
       "role": "文档",
       "character": "肥猫 · 光头强的宠物",
@@ -71,7 +71,7 @@
       "active": true
     },
     {
-      "id": "ui-designer",
+      "id": "cuihua",
       "name": "翠花",
       "role": "界面",
       "character": "母熊 · 美丽动人爱打人",
@@ -80,7 +80,7 @@
       "active": true
     },
     {
-      "id": "visual-designer",
+      "id": "tutu",
       "name": "涂涂",
       "role": "视觉",
       "character": "猫头鹰 · 夜视能力极强",
@@ -89,7 +89,7 @@
       "active": true
     },
     {
-      "id": "sysadmin",
+      "id": "tuotuo",
       "name": "拖拖",
       "role": "运维",
       "character": "乌龟 · 性格单纯稳扎稳打",
@@ -98,7 +98,7 @@
       "active": true
     },
     {
-      "id": "research",
+      "id": "maomao",
       "name": "毛毛",
       "role": "调研",
       "character": "金色小猴 · 吉吉的跟班",
@@ -110,7 +110,7 @@
 
   "verifiers": [
     {
-      "id": "code-reviewer",
+      "id": "jiji",
       "name": "吉吉国王",
       "role": "代码质检",
       "character": "猴子 · 自封森林之王",
@@ -121,7 +121,7 @@
       "active": true
     },
     {
-      "id": "design-reviewer",
+      "id": "laoe",
       "name": "老鳄",
       "role": "设计质检",
       "character": "鳄鱼 · 自称百事通",
@@ -132,7 +132,7 @@
       "active": true
     },
     {
-      "id": "quality-gate",
+      "id": "xiaoli",
       "name": "小狸",
       "role": "质量门禁",
       "character": "狐狸 · 机灵狡黠",
@@ -143,7 +143,7 @@
       "active": true
     },
     {
-      "id": "security",
+      "id": "tiezhang",
       "name": "铁掌大师",
       "role": "安全",
       "character": "东北虎 · 武功高强",
