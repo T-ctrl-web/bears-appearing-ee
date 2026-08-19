@@ -10,7 +10,7 @@
 
 ## 当前阶段
 
-**Phase 2 — 完整版（进行中）**
+**Phase 3 — 多引擎 + IM 集成 + 可视化（完成）**
 
 ### 全阵容（1 + 9 + 4 = 14 角色）
 
@@ -37,78 +37,79 @@
 熊出没集团/
 ├── requirements-spec/           # 需求说明书
 │   ├── requirements-spec.html
-│   └── assets/                  # 角色图片
+│   └── assets/                  # 14张角色图片
 ├── config/                      # 系统配置
 │   ├── team-engine.json         # 团队引擎配置（14角色+并行+优先级+复杂度评估）
 │   ├── verification-rules.json  # 验证规则（三级）
 │   ├── memory-config.json       # 记忆系统配置（三层）
-│   └── cost-control.json        # 成本控制
-├── roles/                       # 角色定义
-│   ├── leader/
-│   │   └── bear-ceo.md          # 熊大
-│   ├── workers/
-│   │   ├── architect-bear.md    # 光头强
-│   │   ├── implementer-bear.md   # 熊二
-│   │   ├── test-engineer-bear.md # 蹦蹦
-│   │   ├── debugger-bear.md     # 萝卜头
-│   │   ├── documentation-bear.md # 肥波
-│   │   ├── ui-designer-bear.md   # 翠花
-│   │   ├── visual-designer-bear.md # 涂涂
-│   │   ├── sysadmin-bear.md     # 拖拖
-│   │   └── research-bear.md     # 毛毛
-│   └── verifiers/
-│       ├── code-reviewer-bear.md # 吉吉国王
-│       ├── design-reviewer-bear.md # 老鳄
-│       ├── quality-gate-bear.md  # 小狸
-│       └── security-bear.md      # 铁掌大师
+│   ├── cost-control.json        # 成本控制
+│   ├── harness-config.json      # DeepSeek harness 接入配置
+│   └── lark-config.json         # 飞书 IM 集成配置
+├── engine/                      # 核心引擎
+│   ├── complexity-evaluator.md  # 复杂度评估
+│   ├── parallel-scheduler.md   # 并行调度
+│   ├── priority-queue.md        # 优先级队列
+│   ├── cost-controller.md      # 成本控制
+│   ├── error-recovery.md        # 错误恢复
+│   ├── verification-engine.md   # 验证引擎
+│   ├── memory-engine.md         # 记忆引擎
+│   ├── harness-adapter.md       # 多引擎适配器
+│   └── lark-bridge.md           # 飞书桥接引擎
+├── roles/                       # 角色定义（14个）
+│   ├── leader/                  # 1个 Leader
+│   ├── workers/                 # 9个 Workers
+│   └── verifiers/               # 4个 Verifiers
 ├── skills/                      # Skill 工具库
-│   └── engineering/
-│       ├── scaffold.md          # 项目脚手架
-│       ├── code-review.md       # 代码审查
-│       └── test-gen.md           # 测试生成
+│   ├── SKILL-INDEX.md           # 26个Skill索引
+│   └── engineering/             # 3个本地Skill
 ├── memory/                      # 记忆系统
-│   ├── session/                 # 会话记忆（JSONL）
+│   ├── session/                 # 会话记忆
 │   ├── project_memory.md        # 项目记忆
 │   └── experience/              # 经验记忆
-│       └── topics.md
 ├── demo/                        # Phase 1 验证示例
-│   ├── roster.html              # 花名册页面
-│   ├── roster-spec.md           # 技术方案
-│   ├── test-report.md           # 测试报告
-│   ├── review-report.md         # 审查报告
-│   └── README.md                # 使用说明
-├── phase2-plan.md               # Phase 2 规划文档
+├── demo2/                       # Phase 2 集成验证示例
+├── dashboard.html               # 纸片人工作看板（Phase 3）
+├── phase2-plan.md               # Phase 2 规划
+├── phase3-plan.md               # Phase 3 规划
 └── README.md
 ```
 
 ## 工作流程
 
-1. 用户向熊大（总裁）提出需求
-2. 熊大评估复杂度（文件数/模块数/依赖/安全敏感度）：
+1. 用户向熊大（总裁）提出需求（可通过飞书 IM）
+2. 熊大秒回确认，评估复杂度（文件数/模块数/依赖/安全敏感度）：
    - **简单** → 快速通道，熊大直接处理
    - **中等** → 拆解为步骤，顺序派发 Worker，Level 1 验证
    - **复杂** → 拆解+并行派发独立子任务，Level 2/3 验证
-3. Worker 产出经 Verifier 审查：
+3. Worker 通过 harness 适配器调度（TRAE Agent 或 DeepSeek API）
+4. Worker 产出经 Verifier 审查：
    - Level 1 柔性（吉吉国王）— 提建议，不强制驳回
    - Level 2 标准（老鳄/小狸）— 驳回重跑，最多 2 轮
    - Level 3 强对抗（铁掌大师）— 凶猛驳回，最多 3 轮
-4. 通过验证后交付用户，记录经验记忆
+5. 通过验证后交付用户，飞书通知，记录经验记忆
+6. 全程在纸片人看板上可视化展示角色工作状态
 
-## Phase 2 新增能力
+## Phase 3 新增能力
 
+- **DeepSeek harness**：多引擎调度，TRAE + DeepSeek API 路由，自动降级
+- **飞书 IM 集成**：秒回确认 + 任务派发 + 进度通知 + 交付通知
+- **纸片人工作模式**：14角色可视化看板，实时状态展示，任务流程演示
+
+## Phase 1-2 能力回顾
+
+- **14角色全阵容**：1 Leader + 9 Workers + 4 Verifiers
 - **并行调度**：独立子任务并行执行，最多 3 个同时
 - **优先级队列**：P0 紧急插队 / P1 常规 / P2 后台
-- **三级验证**：L1 柔性 / L2 标准 / L3 强对抗
+- **三级验证**：L1 柔性 / L2 标准 / L3 强对抗 + 驳回重跑
 - **成本控制**：subagent 上限 + 迭代上限，超限暂停
 - **错误恢复**：超时检测 + 重试 + 换角色 + 升级用户
 - **三层记忆**：会话 + 项目 + 经验，跨会话检索
 - **复杂度评估**：自动判断任务复杂度并选验证级别
-
-## 后续阶段
-
-- **Phase 3**：接入 DeepSeek harness、IM 集成（飞书秒回）、纸片人工作模式
+- **26个Skill**：3个本地 + 23个引用
 
 ## 相关文档
 
 - [需求说明书](requirements-spec/requirements-spec.html)
+- [纸片人工作看板](dashboard.html)
 - [Phase 2 规划](phase2-plan.md)
+- [Phase 3 规划](phase3-plan.md)

@@ -1,0 +1,50 @@
+{
+  "version": "3.0.0",
+  "description": "DeepSeek Harness 接入配置 — Phase 3 多引擎支持",
+
+  "engines": {
+    "trae": {
+      "name": "TRAE Agent",
+      "type": "native",
+      "description": "TRAE 平台原生 Agent 工具，用于本地任务执行",
+      "active": true,
+      "priority": 1,
+      "best_for": ["文件操作", "代码生成", "本地测试", "可视化"]
+    },
+    "deepseek": {
+      "name": "DeepSeek API",
+      "type": "remote",
+      "description": "DeepSeek 远程模型，用于复杂推理和大规模生成",
+      "active": false,
+      "priority": 2,
+      "best_for": ["复杂推理", "架构设计", "代码审查", "文档生成"],
+      "config": {
+        "endpoint": "https://api.deepseek.com/v1/chat/completions",
+        "model": "deepseek-chat",
+        "api_key": "YOUR_DEEPSEEK_API_KEY",
+        "max_tokens": 8192,
+        "temperature": 0.7,
+        "timeout_ms": 120000
+      }
+    }
+  },
+
+  "routing_strategy": {
+    "default_engine": "trae",
+    "rules": [
+      "文件读写/本地操作 → TRAE（必须本地执行）",
+      "复杂推理/架构设计 → DeepSeek（推理能力强）",
+      "代码生成 → TRAE（需要文件操作能力）",
+      "代码审查 → DeepSeek（独立视角更客观）",
+      "文档生成 → DeepSeek 或 TRAE（均可）",
+      "安全审查 → DeepSeek（对抗式推理更强）"
+    ],
+    "fallback": "DeepSeek 不可用时自动回退到 TRAE"
+  },
+
+  "harness_interface": {
+    "dispatch": "Leader 通过 harness 接口派发任务，harness 负责路由到正确的引擎",
+    "callback": "引擎执行完成后通过回调返回结果，进入验证流程",
+    "format": "统一输入输出格式，Worker 不感知底层引擎差异"
+  }
+}
