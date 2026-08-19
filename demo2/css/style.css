@@ -1,6 +1,9 @@
 /* ==================================================
- * 安全登录看板 — 基本功能样式
- * 翠花后续美化，这里先保证布局和功能态可用
+ * 熊出没集团 · 安全登录看板 — 松林蜜光（Pine & Honey）主题
+ * 设计师：翠花
+ * 品牌主色：松针绿（安全/可靠/扎根）
+ * 品牌点缀：蜂蜜蜜（活力/可达成）
+ * 三列叙事线：珊瑚红→蜂蜜蜜→松针绿
  * ================================================== */
 
 /* ========== 基础重置 ========== */
@@ -10,56 +13,135 @@
   box-sizing: border-box;
 }
 
+ul { list-style: none; }
+
+/* ========== 设计令牌 ========== */
+:root {
+  /* —— 品牌主色：松针绿 —— */
+  --pine-900: #0b3d2e;
+  --pine-700: #176449;
+  --pine-600: #1f7a5a;
+  --pine-500: #2a9168;
+  --pine-50:  #e8f3ef;
+
+  /* —— 品牌点缀：蜂蜜蜜 —— */
+  --honey-500: #f59e0b;
+  --honey-600: #d97f06;
+  --honey-50:  #fdf3e3;
+
+  /* —— 中性：暖调雾白 —— */
+  --bg-base:   #f4f8f5;
+  --surface:   #ffffff;
+  --text-1:    #1d2b24;
+  --text-2:    #5a6b62;
+  --text-3:    #9aaaa0;
+  --border:    #e2e8e4;
+  --divider:   #edf2ef;
+
+  /* —— 三列语义色 —— */
+  --todo-500:  #e0584c;
+  --todo-50:   #fdeceb;
+  --doing-500: #e8911c;
+  --doing-50:  #fdf3e3;
+  --done-500:  #2f9e6d;
+  --done-50:   #e6f4ee;
+
+  /* —— 反馈色 —— */
+  --danger:    #e0584c;
+  --danger-50: #fdeceb;
+
+  /* —— 字体 —— */
+  --font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui,
+    "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "微软雅黑",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
+
+  /* —— 圆角分级 —— */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --r-pill: 999px;
+
+  /* —— 阴影：带松绿底色，发暖 —— */
+  --sh-sm: 0 1px 2px rgba(11,61,46,0.06), 0 1px 3px rgba(11,61,46,0.04);
+  --sh-md: 0 4px 12px rgba(11,61,46,0.08), 0 2px 4px rgba(11,61,46,0.04);
+  --sh-lg: 0 16px 40px rgba(11,61,46,0.14), 0 6px 14px rgba(11,61,46,0.06);
+  --sh-focus: 0 0 0 3px rgba(31,122,90,0.18);
+  --sh-lift: 0 8px 22px rgba(11,61,46,0.12);
+
+  /* —— 动效 —— */
+  --ease:      cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --d-fast: 120ms;
+  --d-base: 180ms;
+  --d-slow: 280ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ========== 基础排版 ========== */
 html, body {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 1.5;
-  color: #333;
-  background: #f5f6f8;
-}
-
-ul {
-  list-style: none;
-}
-
-/* ========== 顶部栏 ========== */
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
-  background: #2c3e50;
-  color: #fff;
-}
-
-.app-title {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-#logout-btn {
-  padding: 6px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  background: transparent;
-  color: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-#logout-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  line-height: 1.6;
+  color: var(--text-1);
+  background: var(--bg-base);
 }
 
 /* ========== 视图容器 ========== */
 .view {
-  min-height: calc(100vh - 52px);
+  min-height: calc(100vh - 56px);
+  animation: view-in var(--d-slow) var(--ease-out);
+}
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.view[hidden] { display: none !important; }
+
+/* ========== 顶部栏 ========== */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, var(--pine-900), var(--pine-700));
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(11,61,46,0.18);
 }
 
-.view[hidden] {
-  display: none !important;
+.app-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+#logout-btn {
+  padding: 7px 18px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background var(--d-base) var(--ease),
+              border-color var(--d-base) var(--ease);
+}
+#logout-btn:hover {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.6);
 }
 
 /* ========== 登录视图 ========== */
@@ -68,53 +150,72 @@ ul {
   align-items: center;
   justify-content: center;
   padding: 40px 16px;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(245,158,11,0.10), transparent 60%),
+    radial-gradient(1000px 700px at 10% 110%, rgba(31,122,90,0.12), transparent 55%),
+    linear-gradient(135deg, #eef5f1 0%, #f7faf8 100%);
 }
 
 .login-card {
   width: 100%;
-  max-width: 380px;
-  padding: 32px 28px;
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  max-width: 400px;
+  padding: 40px 36px 32px;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-lg);
+  border: 1px solid rgba(255,255,255,0.6);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 顶部松绿→蜂蜜渐变品牌条 */
+.login-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--pine-600), var(--honey-500));
 }
 
 .login-card h2 {
-  margin-bottom: 24px;
-  font-size: 22px;
+  margin-bottom: 28px;
+  font-size: 24px;
   font-weight: 700;
   text-align: center;
-  color: #2c3e50;
+  color: var(--pine-900);
+  letter-spacing: 0.5px;
 }
 
 /* ========== 表单 ========== */
-.form-group {
-  margin-bottom: 16px;
-}
+.form-group { margin-bottom: 20px; }
 
 .form-group label {
   display: block;
   margin-bottom: 6px;
   font-size: 13px;
-  font-weight: 600;
-  color: #555;
+  font-weight: 500;
+  color: var(--text-2);
 }
 
 .form-group input[type="text"],
 .form-group input[type="password"] {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
   font-size: 14px;
-  outline: none;
-  transition: border-color 0.15s;
+  background: #fbfdfc;
+  transition: border-color var(--d-base) var(--ease),
+              box-shadow var(--d-base) var(--ease),
+              background var(--d-base) var(--ease);
 }
 
 .form-group input[type="text"]:focus,
 .form-group input[type="password"]:focus {
-  border-color: #3498db;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.15);
+  border-color: var(--pine-600);
+  box-shadow: var(--sh-focus);
+  background: var(--surface);
+  outline: none;
 }
 
 .form-row {
@@ -134,30 +235,45 @@ ul {
 .checkbox-label input[type="checkbox"] {
   width: 16px;
   height: 16px;
+  accent-color: var(--pine-600);
   cursor: pointer;
 }
 
 /* ========== 按钮 ========== */
 .btn-primary {
   width: 100%;
-  padding: 11px 16px;
+  padding: 12px 16px;
   border: none;
-  border-radius: 6px;
-  background: #3498db;
+  border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--pine-600), var(--pine-700));
   color: #fff;
   font-size: 15px;
   font-weight: 600;
+  letter-spacing: 0.3px;
   cursor: pointer;
-  transition: background 0.15s;
+  box-shadow: 0 4px 10px rgba(31,122,90,0.25);
+  transition: transform var(--d-fast) var(--ease),
+              box-shadow var(--d-base) var(--ease),
+              filter var(--d-base) var(--ease);
 }
 
 .btn-primary:hover {
-  background: #2980b9;
+  filter: brightness(1.06);
+  box-shadow: 0 8px 18px rgba(31,122,90,0.32);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 6px rgba(31,122,90,0.2);
 }
 
 .btn-primary:disabled {
-  background: #a0cfee;
+  background: var(--pine-50);
+  color: var(--text-3);
+  box-shadow: none;
   cursor: not-allowed;
+  transform: none;
 }
 
 .btn-link {
@@ -165,226 +281,321 @@ ul {
   padding: 8px;
   border: none;
   background: transparent;
-  color: #3498db;
+  color: var(--honey-600);
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   text-align: center;
 }
 
 .btn-link:hover {
+  color: var(--honey-500);
   text-decoration: underline;
 }
 
 /* ========== 表单消息 ========== */
 .form-msg {
   min-height: 20px;
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 13px;
-  color: #e74c3c;
   text-align: center;
+  color: var(--danger);
+}
+
+.form-msg.shake {
+  animation: shake var(--d-slow) var(--ease);
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
 }
 
 /* ========== 看板视图 ========== */
 .kanban-view {
   display: flex;
   flex-direction: column;
-  padding: 16px 24px;
+  padding: 20px 28px;
 }
 
 .kanban-topbar {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
 #add-form {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
-  max-width: 500px;
+  max-width: 520px;
 }
 
 #add-form input[type="text"] {
   flex: 1;
-  padding: 9px 12px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
   font-size: 14px;
+  background: var(--surface);
   outline: none;
+  transition: border-color var(--d-base) var(--ease),
+              box-shadow var(--d-base) var(--ease);
 }
-
 #add-form input[type="text"]:focus {
-  border-color: #3498db;
+  border-color: var(--pine-600);
+  box-shadow: var(--sh-focus);
 }
 
 #add-form .btn-primary {
   width: auto;
-  padding: 9px 20px;
+  padding: 10px 22px;
 }
 
 #kanban-msg {
   flex: 1;
   text-align: right;
+  color: var(--danger);
 }
 
 /* ========== 看板三列 ========== */
 .board {
   display: flex;
-  gap: 16px;
+  gap: 20px;
   flex: 1;
   align-items: flex-start;
 }
 
 .col {
   flex: 1;
-  min-width: 220px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  min-width: 240px;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 180px);
+  max-height: calc(100vh - 200px);
+  border: 1px solid var(--divider);
+  overflow: hidden;
 }
 
+/* 三列语义色变量 */
+.col[data-status="todo"]  { --accent: var(--todo-500);  --accent-50: var(--todo-50); }
+.col[data-status="doing"] { --accent: var(--doing-500); --accent-50: var(--doing-50); }
+.col[data-status="done"]  { --accent: var(--done-500);  --accent-50: var(--done-50); }
+
+/* 列头 */
 .col-title {
-  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
   font-size: 15px;
   font-weight: 700;
-  color: #2c3e50;
-  border-bottom: 2px solid #f0f0f0;
+  color: var(--pine-900);
+  border-bottom: 1px solid var(--divider);
+  position: relative;
 }
 
-/* 不同列标题色 */
-.col[data-status="todo"] .col-title {
-  border-bottom-color: #e74c3c;
+/* 顶部 3px 语义色条 */
+.col-title::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--accent);
 }
 
-.col[data-status="doing"] .col-title {
-  border-bottom-color: #f39c12;
+/* 左侧彩色圆点 */
+.col-title::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
 }
 
-.col[data-status="done"] .col-title {
-  border-bottom-color: #27ae60;
+/* 各列圆点单独着色 */
+.col[data-status="todo"]  .col-title::after { background: var(--todo-500); }
+.col[data-status="doing"] .col-title::after { background: var(--doing-500); }
+.col[data-status="done"]  .col-title::after { background: var(--done-500); }
+
+/* 计数徽标 */
+.col-count {
+  margin-left: auto;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-50);
+  border-radius: var(--r-pill);
 }
 
+/* 任务列表区 */
 .task-list {
   flex: 1;
-  padding: 10px;
+  padding: 12px;
   overflow-y: auto;
   min-height: 80px;
+  background: linear-gradient(180deg, #fbfdfc, var(--surface));
+  transition: background var(--d-base) var(--ease);
 }
 
 /* 拖拽放置高亮 */
 .col.drag-over .task-list {
-  background: #eaf4fc;
-  border: 2px dashed #3498db;
-  border-radius: 6px;
+  background: var(--accent-50);
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  border-radius: var(--r-sm);
+}
+
+/* 空列表提示 */
+.task-list:empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  margin: 8px;
+  border: 2px dashed var(--border);
+  border-radius: var(--r-sm);
+}
+.task-list:empty::after {
+  content: "拖一张卡片到这里";
+  color: var(--text-3);
+  font-size: 13px;
+}
+.col.drag-over .task-list:empty::after {
+  content: "放手吧～";
+  color: var(--accent);
 }
 
 /* ========== 任务卡片 ========== */
 .task-card {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 11px 12px 11px 16px;
   margin-bottom: 8px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
   cursor: grab;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition: box-shadow var(--d-base) var(--ease),
+              border-color var(--d-base) var(--ease),
+              transform var(--d-base) var(--ease);
+  box-shadow: inset 3px 0 0 0 var(--accent, var(--pine-600));
 }
 
 .task-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border-color: #c0c0c0;
+  border-color: var(--accent, var(--pine-600));
+  box-shadow: var(--sh-lift), inset 3px 0 0 0 var(--accent, var(--pine-600));
+  transform: translateY(-1px);
 }
 
-.task-card:active {
-  cursor: grabbing;
-}
+.task-card:active { cursor: grabbing; }
 
-/* 拖拽中的卡片半透明 */
 .task-card.dragging {
-  opacity: 0.4;
+  opacity: 0.5;
+  transform: rotate(-1.5deg) scale(1.02);
+  box-shadow: var(--sh-lift), inset 3px 0 0 0 var(--accent, var(--pine-600));
 }
 
 .task-title {
   flex: 1;
-  word-break: break-all;
-  font-size: 13px;
-  line-height: 1.4;
-  color: #333;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-1);
 }
 
+/* 操作按钮 */
 .task-actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity var(--d-base) var(--ease);
 }
+.task-card:hover .task-actions { opacity: 1; }
 
 .task-actions button {
-  padding: 3px 8px;
-  border: 1px solid #d0d5dd;
-  background: #fafafa;
-  border-radius: 4px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--r-xs);
   font-size: 12px;
   cursor: pointer;
-  color: #666;
+  color: var(--text-2);
+  transition: background var(--d-fast) var(--ease),
+              border-color var(--d-fast) var(--ease),
+              color var(--d-fast) var(--ease);
 }
 
-.task-actions button:hover {
-  background: #f0f0f0;
-}
-
-.task-actions .btn-delete:hover {
-  border-color: #e74c3c;
-  color: #e74c3c;
-  background: #fdf0ef;
-}
+.task-actions button:hover { background: var(--divider); }
 
 .task-actions .btn-edit:hover {
-  border-color: #3498db;
-  color: #3498db;
-  background: #eaf4fc;
+  border-color: var(--pine-600);
+  color: var(--pine-600);
+  background: var(--pine-50);
+}
+.task-actions .btn-delete:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-50);
 }
 
 /* 内联编辑输入框 */
 .task-edit-input {
   flex: 1;
   padding: 6px 8px;
-  border: 1px solid #3498db;
-  border-radius: 4px;
-  font-size: 13px;
+  border: 1px solid var(--pine-600);
+  border-radius: var(--r-xs);
+  font-size: 14px;
   outline: none;
+  box-shadow: var(--sh-focus);
 }
 
-/* 空列表提示 */
-.task-list:empty::after {
-  content: "暂无任务";
-  display: block;
-  text-align: center;
-  padding: 20px 0;
-  color: #bbb;
-  font-size: 13px;
+/* ========== 响应式设计 ========== */
+/* 平板 */
+@media (max-width: 979px) {
+  .kanban-view { padding: 16px; }
+  .board { gap: 12px; }
+  .col { min-width: 180px; }
+  .col-title { padding: 12px 12px; font-size: 14px; }
+  .task-list { padding: 10px; }
 }
 
-/* ========== 响应式：小屏堆叠 ========== */
-@media (max-width: 768px) {
-  .board {
-    flex-direction: column;
-  }
-
-  .col {
-    width: 100%;
-  }
-
+/* 手机 */
+@media (max-width: 639px) {
   .app-header {
     flex-direction: column;
     gap: 8px;
     text-align: center;
+    padding: 12px 16px;
   }
+  .app-title { font-size: 16px; }
+
+  .kanban-view { padding: 12px; }
+  .kanban-topbar { gap: 10px; }
+  #add-form { max-width: 100%; }
+
+  .board { flex-direction: column; gap: 14px; }
+  .col {
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+  }
+
+  .login-card { padding: 32px 22px 26px; max-width: 100%; }
 }

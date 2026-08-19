@@ -134,9 +134,15 @@
             // 清空表单
             self._clearAuthForm();
           } else {
-            // 注册成功 → 切回登录模式
-            self._setAuthMsg(result.msg || '注册成功，请登录');
-            self._setMode('login');
+            // 注册成功 — BUG-012 修复：如果已自动登录，直接跳看板
+            if (Auth.currentUser()) {
+              self._setAuthMsg('');
+              self.showView('kanban');
+              Kanban.init();
+            } else {
+              self._setAuthMsg(result.msg || '注册成功，请登录');
+              self._setMode('login');
+            }
             self._clearAuthForm();
           }
         } else {
@@ -198,7 +204,17 @@
      */
     _setAuthMsg: function (msg) {
       var el = document.getElementById('auth-msg');
-      if (el) el.textContent = msg || '';
+      if (!el) return;
+      el.textContent = msg || '';
+      if (msg) {
+        el.classList.remove('shake');
+        void el.offsetWidth;
+        el.classList.add('shake');
+        el.addEventListener('animationend', function handler() {
+          el.classList.remove('shake');
+          el.removeEventListener('animationend', handler);
+        });
+      }
     }
   };
 

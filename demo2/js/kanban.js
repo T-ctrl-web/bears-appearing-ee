@@ -67,18 +67,43 @@
       }
 
       // 无用户 → 渲染空列表即可
-      if (!user) return;
+      if (!user) {
+        for (var c = 0; c < STATUS_LIST.length; c++) {
+          var countEl0 = document.querySelector(
+            '.col[data-status="' + STATUS_LIST[c] + '"] .col-count'
+          );
+          if (countEl0) countEl0.textContent = '0';
+        }
+        return;
+      }
 
       // 取当前用户全部任务（已按 order 排序）
       var tasks = Storage.getTasks(user);
       for (var j = 0; j < tasks.length; j++) {
         var task = tasks[j];
+        if (STATUS_LIST.indexOf(task.status) === -1) continue;
         var card = this._createTaskElement(task);
         var targetList = document.querySelector(
           '.col[data-status="' + task.status + '"] .task-list'
         );
         if (targetList) {
           targetList.appendChild(card);
+        }
+      }
+
+      // 更新列计数徽标
+      var counts = { todo: 0, doing: 0, done: 0 };
+      for (var k = 0; k < tasks.length; k++) {
+        if (counts[tasks[k].status] !== undefined) {
+          counts[tasks[k].status]++;
+        }
+      }
+      for (var s = 0; s < STATUS_LIST.length; s++) {
+        var countEl = document.querySelector(
+          '.col[data-status="' + STATUS_LIST[s] + '"] .col-count'
+        );
+        if (countEl) {
+          countEl.textContent = counts[STATUS_LIST[s]];
         }
       }
     },
@@ -399,6 +424,8 @@
       var save = function () {
         if (done) return;
         done = true;
+        input.removeEventListener('blur', save);
+        input.removeEventListener('keydown', onKey);
         var newTitle = input.value;
         self.updateTaskTitle(id, newTitle);
       };
@@ -406,10 +433,12 @@
       var cancel = function () {
         if (done) return;
         done = true;
+        input.removeEventListener('blur', save);
+        input.removeEventListener('keydown', onKey);
         self.render(); // 还原
       };
 
-      input.addEventListener('keydown', function (e) {
+      var onKey = function (e) {
         if (e.key === 'Enter') {
           e.preventDefault();
           save();
@@ -417,7 +446,8 @@
           e.preventDefault();
           cancel();
         }
-      });
+      };
+      input.addEventListener('keydown', onKey);
       input.addEventListener('blur', save);
     },
 
@@ -452,19 +482,27 @@
       for (var i = 0; i < cols.length; i++) {
         (function (col) {
           var status = col.getAttribute('data-status');
+          var dragCounter = 0;
+
+          // dragenter：计数器+1，添加高亮
+          col.addEventListener('dragenter', function (e) {
+            e.preventDefault();
+            dragCounter++;
+            col.classList.add('drag-over');
+          });
 
           // dragover：preventDefault 允许放置
           col.addEventListener('dragover', function (e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            col.classList.add('drag-over');
           });
 
-          // dragleave：移除高亮
+          // dragleave：计数器-1，到0时移除高亮
           col.addEventListener('dragleave', function (e) {
-            // 仅当离开整个列时移除（避免子元素间跳动触发）
-            if (e.target === col) {
+            dragCounter--;
+            if (dragCounter <= 0) {
               col.classList.remove('drag-over');
+              dragCounter = 0;
             }
           });
 

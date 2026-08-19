@@ -27,7 +27,7 @@
             type="text"
             id="username"
             name="username"
-            autocomplete="new-password"
+            autocomplete="username"
             maxlength="20"
             placeholder="字母数字下划线 3-20 位"
             required
@@ -41,8 +41,8 @@
             id="password"
             name="password"
             autocomplete="new-password"
-            maxlength="20"
-            placeholder="6-20 位"
+            maxlength="128"
+            placeholder="至少 6 位，建议字母+数字"
             required
           >
         </div>
@@ -87,15 +87,15 @@
 
     <div class="board">
       <div class="col" data-status="todo">
-        <h3 class="col-title">待办</h3>
+        <h3 class="col-title">待办<span class="col-count">0</span></h3>
         <ul class="task-list" data-status="todo"></ul>
       </div>
       <div class="col" data-status="doing">
-        <h3 class="col-title">进行中</h3>
+        <h3 class="col-title">进行中<span class="col-count">0</span></h3>
         <ul class="task-list" data-status="doing"></ul>
       </div>
       <div class="col" data-status="done">
-        <h3 class="col-title">完成</h3>
+        <h3 class="col-title">完成<span class="col-count">0</span></h3>
         <ul class="task-list" data-status="done"></ul>
       </div>
     </div>

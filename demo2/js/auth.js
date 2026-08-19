@@ -233,9 +233,9 @@
 
       username = username.trim();
 
-      // 用户名已存在
+      // 用户名已存在 — BUG-012 修复：不暴露具体原因
       if (Storage.findUser(username)) {
-        return Promise.resolve({ ok: false, msg: '用户名已被注册' });
+        return Promise.resolve({ ok: false, msg: '注册失败，请检查输入或直接登录' });
       }
 
       var self = this;
@@ -253,11 +253,17 @@
         if (!saved) {
           // BUG-004 修复：saveUser 返回 false 时再次检查是否因用户名重复
           if (Storage.findUser(username)) {
-            return { ok: false, msg: '用户名已被注册' };
+            return { ok: false, msg: '注册失败，请检查输入或直接登录' };
           }
           return { ok: false, msg: '注册失败，请重试' };
         }
-        return { ok: true, msg: '注册成功，请登录' };
+        // BUG-012 修复：注册成功后自动登录，减少暴露窗口
+        return self.login(username, password).then(function (loginResult) {
+          if (loginResult.ok) {
+            return { ok: true, msg: '注册成功，已自动登录' };
+          }
+          return { ok: true, msg: '注册成功，请登录' };
+        });
       });
     },
 
