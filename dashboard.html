@@ -528,7 +528,7 @@ body {
 
 .bear {
   position: absolute;
-  width: 56px; margin-left: -28px; margin-top: -34px;
+  width: 56px; margin-left: -28px; margin-top: -40px;
   transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95), opacity .5s;
   z-index: 10; cursor: pointer; text-align: center; user-select: none;
 }
@@ -536,22 +536,54 @@ body {
 /* 聚焦模式：任务执行期间，空闲角色降透明度，突出干活的人 */
 .bear.dimmed { opacity: 0.32; }
 .bear.dimmed:hover { opacity: 1; }
+
+/* 小人身体：头像 + 双腿 + 影子 + 状态徽章 */
+.bear-body { position: relative; animation: idle-breath 3.4s ease-in-out infinite; }
+.bear.walking .bear-body { animation: bear-bob 0.34s infinite alternate ease-in-out; }
+@keyframes idle-breath { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1px) scaleY(1.04); } }
+@keyframes bear-bob { from { transform: translateY(0); } to { transform: translateY(-5px); } }
+
 .bear-sprite { transition: transform 0.25s; }
 .bear img {
   width: 44px; height: 44px; object-fit: cover; border-radius: 50%;
   border: 2px solid var(--bg3); background: var(--bg3);
   display: block; margin: 0 auto;
-  transition: border-color .35s, box-shadow .35s;
+  transition: border-color .35s, box-shadow .35s, transform .25s;
 }
+.bear:hover img { transform: scale(1.14); }
+
+/* 双腿（颜色由角色主题色注入） */
+.bear-legs { display: flex; gap: 7px; justify-content: center; margin-top: -3px; height: 9px; }
+.bear-legs .leg { width: 5px; height: 9px; border-radius: 2.5px; transform-origin: top center; }
+.bear.walking .bear-legs .leg.l { animation: leg-swing 0.3s infinite alternate ease-in-out; }
+.bear.walking .bear-legs .leg.r { animation: leg-swing 0.3s 0.15s infinite alternate ease-in-out; }
+@keyframes leg-swing { from { transform: rotate(22deg); } to { transform: rotate(-22deg); } }
+
+/* 影子 */
+.bear::after {
+  content: ''; position: absolute; left: 50%; bottom: -4px;
+  transform: translateX(-50%);
+  width: 32px; height: 7px; border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, transparent 68%);
+  transition: transform .3s, opacity .3s; pointer-events: none;
+}
+.bear.walking::after { transform: translateX(-50%) scale(0.78); opacity: 0.55; }
+
+/* 状态徽章 */
+.bear-badge {
+  position: absolute; top: -7px; right: -3px;
+  font-size: 13px; line-height: 1; z-index: 12;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+  pointer-events: none;
+}
+
 .bear .bear-name { font-size: 10px; color: var(--muted); margin-top: 3px; white-space: nowrap; transition: color .3s; }
 .bear.executing img { border-color: var(--accent2); box-shadow: 0 0 14px rgba(74,196,160,0.55); }
 .bear.executing .bear-name { color: var(--accent2); }
 .bear.waiting img { border-color: var(--warn); box-shadow: 0 0 10px rgba(240,160,75,0.4); }
 .bear.done img { border-color: var(--success); box-shadow: 0 0 12px rgba(74,196,122,0.45); }
 .bear.failed img { border-color: var(--danger); box-shadow: 0 0 14px rgba(232,93,93,0.5); }
-.bear.walking img { animation: bear-bob 0.34s infinite alternate ease-in-out; }
 .bear.walking.left .bear-sprite { transform: scaleX(-1); }
-@keyframes bear-bob { from { transform: translateY(0); } to { transform: translateY(-6px); } }
 
 .bubble {
   position: absolute; bottom: calc(100% + 6px); left: 50%;
@@ -1016,6 +1048,7 @@ const OfficeScene = (() => {
   ];
   const GREETINGS = ['嗨！','忙啥呢？','加油！','嘿嘿~','这咖啡真香~','来局乒乓球？','追剧呢？','零食分我点~','辛苦啦！','今天状态不错'];
   const STATUS_CLASS = { idle:'idle', executing:'executing', waiting:'waiting', done:'done', failed:'failed' };
+  const STATUS_BADGE = { idle:'💤', executing:'⚡', waiting:'⏳', done:'✅', failed:'❌' };
 
   let inited = false;
 
@@ -1026,19 +1059,36 @@ const OfficeScene = (() => {
   function createBear(role) {
     const el = document.createElement('div');
     el.className = 'bear';
+    // 说话气泡
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
+    // 状态徽章
+    const badge = document.createElement('div');
+    badge.className = 'bear-badge'; badge.textContent = '💤';
+    // 身体（呼吸容器）：头像 + 双腿
+    const body = document.createElement('div');
+    body.className = 'bear-body';
     const sprite = document.createElement('div');
     sprite.className = 'bear-sprite';
     const img = document.createElement('img');
     img.src = role.img; img.alt = role.name; img.loading = 'lazy';
     sprite.appendChild(img);
+    const legs = document.createElement('div');
+    legs.className = 'bear-legs';
+    const legL = document.createElement('div'); legL.className = 'leg l'; legL.style.background = role.color; // 角色主题色
+    const legR = document.createElement('div'); legR.className = 'leg r'; legR.style.background = role.color;
+    legs.appendChild(legL); legs.appendChild(legR);
+    body.appendChild(sprite); body.appendChild(legs);
+    // 名牌
     const name = document.createElement('div');
     name.className = 'bear-name'; name.textContent = role.name;
-    el.appendChild(bubble); el.appendChild(sprite); el.appendChild(name);
-    el.addEventListener('click', () => showDetail(role, roleStates[role.id] || { status: 'idle', task: '' }));
+    el.appendChild(bubble); el.appendChild(badge); el.appendChild(body); el.appendChild(name);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation(); // 不触发场景召唤
+      showDetail(role, roleStates[role.id] || { status: 'idle', task: '' });
+    });
     document.getElementById('officeStage').appendChild(el);
-    return { el, bubble, role, pos: null, status: 'idle', bubbleTimer: null, walkTimer: null, doneTimer: null, greetCooldown: {} };
+    return { el, bubble, badge, role, pos: null, status: 'idle', bubbleTimer: null, walkTimer: null, doneTimer: null, greetCooldown: {} };
   }
 
   // 走到指定点位（带走路动画与朝向翻转）
@@ -1145,6 +1195,7 @@ const OfficeScene = (() => {
     bear.status = status;
     const cls = STATUS_CLASS[status] || 'idle';
     Object.values(STATUS_CLASS).forEach(c => bear.el.classList.toggle(c, c === cls));
+    bear.badge.textContent = STATUS_BADGE[status] || '';
     if (task && status === 'executing') speak(roleId, task, 3000);
     clearTimeout(bear.doneTimer);
     if (status === 'done') {
@@ -1167,6 +1218,7 @@ const OfficeScene = (() => {
     for (const id in bears) {
       const bear = bears[id];
       bear.status = 'idle';
+      bear.badge.textContent = STATUS_BADGE.idle;
       Object.values(STATUS_CLASS).forEach(c => bear.el.classList.remove(c));
       bear.el.classList.remove('walking', 'left', 'dimmed');
       clearTimeout(bear.bubbleTimer); clearTimeout(bear.walkTimer); clearTimeout(bear.doneTimer);
@@ -1208,6 +1260,25 @@ const OfficeScene = (() => {
   function init() {
     if (inited) return;
     inited = true;
+    // 点击场景空白处：召唤最近的空闲小人走过去（点击小人本身则弹出详情，不冒泡到此处）
+    document.getElementById('officeStage').addEventListener('click', (e) => {
+      if (e.target.closest('.bear')) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = Math.min(95, Math.max(5, ((e.clientX - rect.left) / rect.width) * 100));
+      const y = Math.min(92, Math.max(8, ((e.clientY - rect.top) / rect.height) * 100));
+      const idle = Object.values(bears).filter(b => b.status === 'idle');
+      if (!idle.length) return;
+      let nearest = null, best = Infinity;
+      for (const b of idle) {
+        if (!b.pos) continue;
+        const d = Math.hypot(b.pos.x - x, b.pos.y - y);
+        if (d < best) { best = d; nearest = b; }
+      }
+      if (nearest) {
+        place(nearest, { x, y });
+        speak(nearest.role.id, '来啦？叫我吗？', 2600);
+      }
+    });
     let deskIdx = 0, verifyIdx = 0, idleIdx = 0, fixIdx = 0;
     ROLES.forEach(role => {
       const bear = createBear(role);
@@ -1226,17 +1297,18 @@ const OfficeScene = (() => {
   return { init, updateRole, speak, announce, resetAll, celebrate };
 })();
 
-// 视图切换：卡片 ↔ 办公室场景
+// 视图切换：小人世界（默认）↔ 花名册卡片
 let officeMode = false;
-function toggleOfficeMode() {
-  officeMode = !officeMode;
+function setOfficeMode(on) {
+  officeMode = on;
   OfficeScene.init();
-  document.getElementById('officeStage').classList.toggle('show', officeMode);
+  document.getElementById('officeStage').classList.toggle('show', on);
   document.querySelectorAll('.main .group, .main .timeline-section').forEach(el => {
-    el.style.display = officeMode ? 'none' : '';
+    el.style.display = on ? 'none' : '';
   });
-  document.getElementById('viewBtn').textContent = officeMode ? '卡片视图' : '办公室场景';
+  document.getElementById('viewBtn').textContent = on ? '花名册' : '小人世界';
 }
+function toggleOfficeMode() { setOfficeMode(!officeMode); }
 
 // === SSE 实时模式（角色 ID 与服务器 state.js 统一为拼音体系，无需映射） ===
 const STATUS_MAP = { 'IDLE': 'idle', 'WORKING': 'executing', 'WAITING': 'waiting', 'DONE': 'done', 'FAILED': 'failed' };
@@ -1355,6 +1427,7 @@ function applyServerState(s) {
 // === 初始化 ===
 initState();
 OfficeScene.init();
+setOfficeMode(true); // 默认进入小人世界（卡片降为「花名册」按需查看）
 renderRoles();
 renderTimeline(DEMO_WAVES, 0);
 updateProgress(0, 0);
