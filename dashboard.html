@@ -346,12 +346,14 @@ body {
 }
 
 .detail-panel img {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
+  height: 150px;
+  width: auto;
+  border-radius: 12px;
   margin: 0 auto 16px;
   display: block;
-  border: 3px solid var(--accent);
+  background: #f8f3e9;
+  border: 1px solid var(--rule);
+  padding: 4px;
 }
 
 .detail-panel h3 {
@@ -483,13 +485,15 @@ body {
 .log-entry .role-tag.verifier { background: rgba(240,160,75,0.15); color: var(--warn); }
 
 /* === 办公室场景（MAVIS 风格走动交互） === */
+
+/* 场景舞台：明亮清新办公风（配合白底立绘 multiply 无缝融合） */
 #officeStage {
   position: relative;
   height: clamp(420px, 62vh, 560px);
   background:
-    radial-gradient(ellipse at 30% 0%, rgba(108,142,239,0.08), transparent 55%),
-    linear-gradient(180deg, #272e41 0%, #202636 60%, #1b2131 100%);
-  border: 1px solid var(--rule);
+    radial-gradient(ellipse at 50% -10%, rgba(255,255,255,0.9), transparent 60%),
+    linear-gradient(180deg, #f8f3e9 0%, #efe6d4 100%);
+  border: 1px solid #d8cbb2;
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 32px;
@@ -556,67 +560,39 @@ body {
 
 .bear {
   position: absolute;
-  width: 56px; margin-left: -28px; margin-top: -52px;
+  width: 66px; margin-left: -33px; margin-top: -92px;
   transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95), opacity .5s;
   z-index: 10; cursor: pointer; text-align: center; user-select: none;
 }
 
 /* 聚焦模式：任务执行期间，空闲角色降透明度，突出干活的人 */
-.bear.dimmed { opacity: 0.32; }
+.bear.dimmed { opacity: 0.3; }
 .bear.dimmed:hover { opacity: 1; }
 
-/* 纸片小人：头（头像）+ 躯干（角色色）+ 双臂 + 双腿 */
+/* 精美立绘小人：AI 全身立绘，白底 multiply 融入明亮场景 */
 .bear-body { position: relative; animation: idle-breath 3.4s ease-in-out infinite; transition: transform .25s; }
 .bear.walking .bear-body { animation: bear-bob 0.34s infinite alternate ease-in-out; }
 .bear:hover .bear-body { transform: scale(1.1); }
-@keyframes idle-breath { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1px) scaleY(1.03); } }
+@keyframes idle-breath { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1.5px) scaleY(1.02); } }
 @keyframes bear-bob { from { transform: translateY(0); } to { transform: translateY(-4px); } }
 
 .bear-sprite { transition: transform 0.25s; }
-.bear img {
-  width: 40px; height: 40px; object-fit: cover; border-radius: 50%;
-  border: 2px solid var(--bg3); background: var(--bg3);
+.bear .bear-img {
+  height: 78px; width: auto;
   display: block; margin: 0 auto;
-  transition: border-color .35s, box-shadow .35s;
+  mix-blend-mode: multiply; /* 白底透明化，无缝融入浅色场景 */
+  filter: drop-shadow(0 1px 1px rgba(80,60,30,0.12));
 }
 
-/* 躯干（角色主题色圆角矩形） */
-.bear-torso {
-  position: relative;
-  width: 26px; height: 17px;
-  margin: -4px auto 0;
-  border-radius: 9px 9px 5px 5px;
-  box-shadow: inset 0 -3px 0 rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.25);
-}
-
-/* 双臂（角色色小圆，走路摆动） */
-.bear-torso .arm {
-  position: absolute; top: 1px;
-  width: 7px; height: 12px; border-radius: 4px;
-  transform-origin: top center;
-  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.15);
-}
-.bear-torso .arm.l { left: -6px; }
-.bear-torso .arm.r { right: -6px; }
-.bear.walking .bear-torso .arm.l { animation: leg-swing 0.3s 0.15s infinite alternate ease-in-out; }
-.bear.walking .bear-torso .arm.r { animation: leg-swing 0.3s infinite alternate ease-in-out; }
-
-/* 双腿（颜色由角色主题色注入） */
-.bear-legs { display: flex; gap: 6px; justify-content: center; height: 9px; }
-.bear-legs .leg { width: 5px; height: 9px; border-radius: 2.5px; transform-origin: top center; }
-.bear.walking .bear-legs .leg.l { animation: leg-swing 0.3s infinite alternate ease-in-out; }
-.bear.walking .bear-legs .leg.r { animation: leg-swing 0.3s 0.15s infinite alternate ease-in-out; }
-@keyframes leg-swing { from { transform: rotate(20deg); } to { transform: rotate(-20deg); } }
-
-/* 影子 */
+/* 影子（浅色场景柔和版） */
 .bear::after {
-  content: ''; position: absolute; left: 50%; bottom: -4px;
+  content: ''; position: absolute; left: 50%; bottom: 15px;
   transform: translateX(-50%);
-  width: 32px; height: 7px; border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, transparent 68%);
+  width: 34px; height: 8px; border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(90,70,40,0.28) 0%, transparent 68%);
   transition: transform .3s, opacity .3s; pointer-events: none;
 }
-.bear.walking::after { transform: translateX(-50%) scale(0.78); opacity: 0.55; }
+.bear.walking::after { transform: translateX(-50%) scale(0.78); opacity: 0.6; }
 
 /* 状态徽章 */
 .bear-badge {
@@ -626,24 +602,28 @@ body {
   pointer-events: none;
 }
 
-.bear .bear-name { font-size: 10px; color: var(--muted); margin-top: 3px; white-space: nowrap; transition: color .3s; }
-.bear.executing img { border-color: var(--accent2); box-shadow: 0 0 14px rgba(74,196,160,0.55); }
-.bear.executing .bear-name { color: var(--accent2); }
-.bear.waiting img { border-color: var(--warn); box-shadow: 0 0 10px rgba(240,160,75,0.4); }
-.bear.done img { border-color: var(--success); box-shadow: 0 0 12px rgba(74,196,122,0.45); }
-.bear.failed img { border-color: var(--danger); box-shadow: 0 0 14px rgba(232,93,93,0.5); }
+.bear .bear-name { font-size: 10px; color: #8a8070; margin-top: 2px; white-space: nowrap; transition: color .3s; font-weight: 500; }
+.bear.executing .bear-img { filter: drop-shadow(0 0 7px rgba(46,184,138,0.75)); }
+.bear.executing .bear-name { color: #1f9d6f; }
+.bear.waiting .bear-img { filter: drop-shadow(0 0 6px rgba(230,150,50,0.7)); }
+.bear.waiting .bear-name { color: #c07820; }
+.bear.done .bear-img { filter: drop-shadow(0 0 6px rgba(60,180,110,0.6)); }
+.bear.done .bear-name { color: #2f9e63; }
+.bear.failed .bear-img { filter: drop-shadow(0 0 7px rgba(220,80,80,0.75)); }
+.bear.failed .bear-name { color: #cc4444; }
 .bear.walking.left .bear-sprite { transform: scaleX(-1); }
 
 .bubble {
   position: absolute; bottom: calc(100% + 6px); left: 50%;
   transform: translateX(-50%) translateY(4px);
   background: #fff; color: #1a1f2e;
+  border: 1px solid #d5cab5;
   font-size: 11px; line-height: 1.45;
   padding: 5px 10px; border-radius: 9px;
   max-width: 190px; width: max-content;
   opacity: 0; pointer-events: none;
   transition: opacity .25s, transform .25s;
-  z-index: 30; box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  z-index: 30; box-shadow: 0 2px 10px rgba(120,100,60,0.25);
 }
 .bubble.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .bubble::after {
@@ -692,7 +672,7 @@ body {
 
   <!-- 办公室场景（MAVIS 风格小人世界） -->
   <div id="officeStage">
-    <div class="office-zone" style="left:2%; top:5%; width:26%; height:90%; background:rgba(212,165,116,0.07)"></div>
+    <div class="office-zone" style="left:2%; top:5%; width:26%; height:90%; background:rgba(212,165,116,0.22)"></div>
     <div class="facility" style="left:6%; top:11%">📺</div>
     <div class="facility" style="left:23%; top:11%">☕</div>
     <div class="facility" style="left:6%; top:27%">🛋️</div>
@@ -701,10 +681,10 @@ body {
     <div class="facility" style="left:23%; top:58%">🪴</div>
     <div class="facility" style="left:6%; top:73%">🍜</div>
     <div class="facility" style="left:23%; top:76%">🌿</div>
-    <div class="office-zone" style="left:31%; top:5%; width:38%; height:58%; background:rgba(108,142,239,0.07)"></div>
-    <div class="office-zone" style="left:72%; top:5%; width:26%; height:45%; background:rgba(240,160,75,0.07)"></div>
-    <div class="office-zone" style="left:31%; top:67%; width:38%; height:28%; background:rgba(154,120,196,0.07)"></div>
-    <div class="office-zone" style="left:72%; top:53%; width:26%; height:42%; background:rgba(74,196,160,0.07)"></div>
+    <div class="office-zone" style="left:31%; top:5%; width:38%; height:58%; background:rgba(120,150,235,0.16)"></div>
+    <div class="office-zone" style="left:72%; top:5%; width:26%; height:45%; background:rgba(240,160,75,0.18)"></div>
+    <div class="office-zone" style="left:31%; top:67%; width:38%; height:28%; background:rgba(170,135,215,0.16)"></div>
+    <div class="office-zone" style="left:72%; top:53%; width:26%; height:42%; background:rgba(84,196,165,0.16)"></div>
   </div>
 
   <!-- Leader 组 -->
@@ -843,7 +823,7 @@ function renderRoles() {
 // === 详情弹窗 ===
 function showDetail(role, state) {
   const overlay = document.getElementById('detailOverlay');
-  document.getElementById('detailImg').src = role.img;
+  document.getElementById('detailImg').src = role.sprite || role.img;
   document.getElementById('detailName').textContent = `${role.name}（${role.duty}）`;
   document.getElementById('detailDuty').textContent = `${role.animal} · ${role.char}`;
   const statusMap = { idle:'空闲', executing:'执行中', done:'已完成', failed:'失败', waiting:'等待验证' };
@@ -1114,25 +1094,16 @@ const OfficeScene = (() => {
     // 状态徽章
     const badge = document.createElement('div');
     badge.className = 'bear-badge'; badge.textContent = '💤';
-    // 纸片小人身体：头（头像）+ 躯干（角色色）+ 双臂 + 双腿
+    // 精美立绘小人（AI 生成全身立绘，白底 multiply 融入场景）
     const body = document.createElement('div');
     body.className = 'bear-body';
     const sprite = document.createElement('div');
     sprite.className = 'bear-sprite';
     const img = document.createElement('img');
-    img.src = role.img; img.alt = role.name; img.loading = 'lazy';
+    img.className = 'bear-img';
+    img.src = role.sprite || role.img; img.alt = role.name; img.loading = 'lazy';
     sprite.appendChild(img);
-    const torso = document.createElement('div');
-    torso.className = 'bear-torso'; torso.style.background = role.color; // 角色主题色躯干
-    const armL = document.createElement('div'); armL.className = 'arm l'; armL.style.background = role.color;
-    const armR = document.createElement('div'); armR.className = 'arm r'; armR.style.background = role.color;
-    torso.appendChild(armL); torso.appendChild(armR);
-    const legs = document.createElement('div');
-    legs.className = 'bear-legs';
-    const legL = document.createElement('div'); legL.className = 'leg l'; legL.style.background = role.color;
-    const legR = document.createElement('div'); legR.className = 'leg r'; legR.style.background = role.color;
-    legs.appendChild(legL); legs.appendChild(legR);
-    body.appendChild(sprite); body.appendChild(torso); body.appendChild(legs);
+    body.appendChild(sprite);
     // 名牌
     const name = document.createElement('div');
     name.className = 'bear-name'; name.textContent = role.name;
@@ -1507,6 +1478,15 @@ function applyServerState(s) {
   }
   if (s.task && s.task.status !== 'completed') celebrated = false;
 }
+
+// 角色立绘映射（AI 生成的 Pixar 风格 Q 版 3D 全身立绘，白底）
+const SPRITE_MAP = {
+  xiongda: 'char-xiongda', guangtouqiang: 'char-guangtouqiang', xionger: 'char-xionger',
+  luobotou: 'char-luobotou', bengbeng: 'char-bengbeng', cuihua: 'char-cuihua',
+  tutu: 'char-tutu', tuotuo: 'char-tuotuo', maomao: 'char-maomao', feibo: 'char-feibo',
+  jiji: 'char-jiji', laoe: 'char-laoe', xiaoli: 'char-xiaoli', tiezhang: 'char-tiezhang',
+};
+ROLES.forEach(r => { r.sprite = `assets/characters/${SPRITE_MAP[r.id]}.jpg`; });
 
 // === 初始化 ===
 initState();
