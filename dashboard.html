@@ -1671,9 +1671,18 @@ updateProgress(0, 0);
       <input id="settingsModel" type="text" value="deepseek-v4-flash" autocomplete="off"
         style="width:100%;background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:13px;" />
     </div>
-    <div style="margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+    <div style="margin-bottom:14px;display:flex;align-items:center;gap:8px;">
       <input id="settingsAllowCmd" type="checkbox" style="width:16px;height:16px;cursor:pointer;" />
       <label for="settingsAllowCmd" style="color:var(--muted);font-size:13px;cursor:pointer;">允许执行 node 命令（Worker/Verifier 可真实运行工作区脚本做自检，默认关闭）</label>
+    </div>
+    <div style="margin-bottom:18px;">
+      <label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px;">工作区目录（任务产出文件的写入位置，需绝对路径，留空用默认；对下一个任务生效）</label>
+      <div style="display:flex;gap:8px;">
+        <input id="settingsWsRoot" type="text" placeholder="例如 D:\mavis-workspaces" autocomplete="off"
+          style="flex:1;background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:13px;" />
+        <button id="settingsWsOpen" title="在资源管理器中打开当前工作区目录"
+          style="background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;white-space:nowrap;">📁 打开</button>
+      </div>
     </div>
     <div id="settingsStatus" style="font-size:12px;color:var(--muted);margin-bottom:12px;min-height:16px;"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -1687,7 +1696,11 @@ updateProgress(0, 0);
   <div style="width:min(860px,92vw);max-height:82vh;display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--rule);border-radius:12px;padding:20px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div style="font-size:16px;font-weight:600;color:var(--ink);">工作区产物</div>
-      <span id="wsClose" style="cursor:pointer;color:var(--muted);font-size:18px;">✕</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button id="wsOpenFolder" title="在资源管理器中打开工作区"
+          style="background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;">📁 打开文件夹</button>
+        <span id="wsClose" style="cursor:pointer;color:var(--muted);font-size:18px;">✕</span>
+      </div>
     </div>
     <div id="wsPath" style="font-size:12px;color:var(--muted);margin-bottom:10px;word-break:break-all;"></div>
     <div id="wsFiles" style="flex:1;overflow:auto;display:flex;gap:16px;min-height:200px;">
@@ -1721,6 +1734,7 @@ updateProgress(0, 0);
       const d = await r.json();
       if (d.saved && d.saved.api_key) keyInput.value = d.saved.api_key;
       if (d.saved && d.saved.model) modelInput.value = d.saved.model;
+      document.getElementById('settingsWsRoot').value = (d.saved && d.saved.workspace_root) || '';
       document.getElementById('settingsAllowCmd').checked = !!(d.saved && d.saved.allow_commands);
       statusEl.textContent = '引擎：' + (d.harness && d.harness.engine === 'mock' ? '演示模式（未配置 Key）' : '真实 LLM（' + (d.harness && d.harness.model) + '）');
     } catch (e) { statusEl.textContent = '无法读取设置'; }
@@ -1730,13 +1744,18 @@ updateProgress(0, 0);
       api_key: keyInput.value.trim(),
       model: modelInput.value.trim(),
       allow_commands: document.getElementById('settingsAllowCmd').checked,
+      workspace_root: document.getElementById('settingsWsRoot').value.trim(),
     };
     try {
       const r = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json();
-      statusEl.textContent = (d.harness && d.harness.engine === 'mock') ? '已保存，但仍为演示模式（Key 无效或为空）' : '已保存，真实 LLM 已生效';
+      if (r.ok) statusEl.textContent = (d.harness && d.harness.engine === 'mock') ? '已保存，但仍为演示模式（Key 无效或为空）' : '已保存，真实 LLM 已生效';
+      else statusEl.textContent = d.error || '保存失败';
     } catch (e) { statusEl.textContent = '保存失败'; }
   }
+  document.getElementById('settingsWsOpen').addEventListener('click', async () => {
+    try { await fetch('/api/workspace/open', { method: 'POST' }); } catch (e) { statusEl.textContent = '打开失败'; }
+  });
   document.getElementById('openSettings').addEventListener('click', open);
   document.getElementById('settingsClose').addEventListener('click', close);
   document.getElementById('settingsSave').addEventListener('click', save);
@@ -1845,6 +1864,9 @@ updateProgress(0, 0);
   function close() { modal.style.display = 'none'; }
   document.getElementById('openWorkspace').addEventListener('click', open);
   document.getElementById('wsClose').addEventListener('click', close);
+  document.getElementById('wsOpenFolder').addEventListener('click', async () => {
+    try { await fetch('/api/workspace/open', { method: 'POST' }); } catch (e) { /* 忽略 */ }
+  });
 })();
 </script>
 </html>

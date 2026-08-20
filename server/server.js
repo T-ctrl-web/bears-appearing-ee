@@ -22,7 +22,7 @@ const {
   ROLES,
 } = require('./state');
 
-const { TeamRunner } = require('../engine/team-runner');
+const { TeamRunner, getWorkspaceRoot } = require('../engine/team-runner');
 const { HarnessAdapter } = require('../engine/harness-adapter');
 const { ToolExecutor } = require('../engine/tool-executor');
 const settings = require('./settings');
@@ -188,6 +188,18 @@ const server = http.createServer(async (req, res) => {
     }
     if (typeof body.model === 'string' && body.model.trim()) next.model = String(body.model).trim();
     if (typeof body.allow_commands === 'boolean') next.allow_commands = body.allow_commands;
+    // 工作区根目录：绝对路径生效，空串/相对路径回退默认（新任务生效）
+    if (typeof body.workspace_root === 'string') {
+      const root = body.workspace_root.trim();
+      if (root && path.isAbsolute(root)) {
+        try {
+          fs.mkdirSync(root, { recursive: true });
+          next.workspace_root = root;
+        } catch (e) { sendJson(res, 400, { error: `目录不可创建：${e.message}` }); return; }
+      } else {
+        next.workspace_root = ''; // 显式清空 = 恢复默认目录
+      }
+    }
     settings.saveUserSettings(next);
     harness.applyUserSettings();
     sendJson(res, 200, { ok: true, harness: harness.engineStatus });
@@ -392,6 +404,22 @@ const server = http.createServer(async (req, res) => {
     const ex = new ToolExecutor(ws);
     try { sendJson(res, 200, { path: rel, content: ex.readFile(rel) }); }
     catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+
+  // 在系统资源管理器中打开工作区（当前任务工作区优先，无任务时打开根目录）
+  if (p === '/api/workspace/open' && req.method === 'POST') {
+    const ws = (runner.currentTask?.workspace && fs.existsSync(runner.currentTask.workspace))
+      ? runner.currentTask.workspace
+      : getWorkspaceRoot();
+    try { fs.mkdirSync(ws, { recursive: true }); } catch { /* 已存在 */ }
+    const opener = process.platform === 'win32' ? 'explorer'
+      : process.platform === 'darwin' ? 'open' : 'xdg-open';
+    try {
+      const { spawn } = require('child_process');
+      spawn(opener, [ws], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      sendJson(res, 200, { ok: true, path: ws });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 

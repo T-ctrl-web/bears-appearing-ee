@@ -21,18 +21,32 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-// 任务工作区根目录：桌面版（MAVIS_USER_DATA）优先，开发态 ~/.mavis。
+// 任务工作区根目录：用户设置 workspace_root（绝对路径）优先，
+// 否则默认 桌面版（MAVIS_USER_DATA）优先，开发态 ~/.mavis。
 // 不放项目目录内（打包后项目位于只读 asar）。
-const WORKSPACE_ROOT = process.env.MAVIS_USER_DATA
-  ? path.join(process.env.MAVIS_USER_DATA, 'workspaces')
-  : path.join(os.homedir(), '.mavis', 'workspaces');
+const { loadUserSettings } = require('../server/settings');
+
+function defaultWorkspaceRoot() {
+  return process.env.MAVIS_USER_DATA
+    ? path.join(process.env.MAVIS_USER_DATA, 'workspaces')
+    : path.join(os.homedir(), '.mavis', 'workspaces');
+}
+
+/** 当前生效的工作区根目录（用户设置优先，每次任务启动时读取以支持热更新） */
+function getWorkspaceRoot() {
+  try {
+    const custom = String(loadUserSettings().workspace_root || '').trim();
+    if (custom && path.isAbsolute(custom)) return custom;
+  } catch { /* 设置读取失败回退默认 */ }
+  return defaultWorkspaceRoot();
+}
 
 function createWorkspace(taskInfo) {
   const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   const rand = Math.random().toString(36).slice(2, 6);
   const slug = String(taskInfo.title || taskInfo.requirement || 'task')
     .replace(/[^\w\u4e00-\u9fa5-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'task';
-  const dir = path.join(WORKSPACE_ROOT, `${ts}-${slug}-${rand}`);
+  const dir = path.join(getWorkspaceRoot(), `${ts}-${slug}-${rand}`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -433,4 +447,4 @@ class TeamRunner {
   }
 }
 
-module.exports = { TeamRunner };
+module.exports = { TeamRunner, getWorkspaceRoot, defaultWorkspaceRoot };
