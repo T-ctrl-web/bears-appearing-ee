@@ -565,6 +565,7 @@ body {
   width: 72px; margin-left: -36px; margin-top: -92px;
   transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95), opacity .5s;
   z-index: 10; cursor: pointer; text-align: center; user-select: none;
+  mix-blend-mode: darken;
 }
 
 /* 聚焦模式：任务执行期间，空闲角色降透明度，突出干活的人 */
@@ -580,10 +581,8 @@ body {
   width: 68px; height: 68px; margin: 2px auto;
   background-size: 272px 272px;
   background-repeat: no-repeat;
-  mix-blend-mode: darken;
   overflow: hidden;
   border-radius: 4px;
-  filter: drop-shadow(0 1px 1px rgba(80,60,30,0.12));
   animation: sprite-idle 1.2s steps(4) infinite;
 }
 @keyframes sprite-idle { from { background-position: 0 0; } to { background-position: -272px 0; } }
