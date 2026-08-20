@@ -99,6 +99,9 @@ class TeamRunner {
       throw new Error(`当前任务未结束（状态：${this.currentState}），无法启动新任务`);
     }
     this.sm.resetTask();
+    if (this.harness && typeof this.harness.resetTaskBudget === 'function') {
+      this.harness.resetTaskBudget(); // 每个任务独立的 per_task 预算（会话级继续累积）
+    }
     this.ctx = this._createContext(taskInfo);
     this._execution = null;
     this._verification = null;

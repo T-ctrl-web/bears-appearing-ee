@@ -217,7 +217,15 @@ class HarnessAdapter {
     this.roleMap = loadRoleMap();
     this.verificationRules = loadVerificationRules();
     this.costConfig = loadCostConfig();
+    // 任务级计数（每个任务重置，对应 per_task 预算）与会话级计数（进程累积，对应 per_session 预算）
     this.tokenUsage = { total: 0, byRole: {}, calls: 0 };
+    this.sessionUsage = { total: 0, calls: 0 };
+  }
+
+  /** 新任务启动时重置任务级预算（会话级继续累积，防全局熔断误伤后续任务） */
+  resetTaskBudget() {
+    this.tokenUsage = { total: 0, byRole: {}, calls: 0 };
+    return this;
   }
 
   /**
@@ -246,13 +254,15 @@ class HarnessAdapter {
 
   get isBudgetExceeded() {
     const { perTask, perSession } = this.tokenBudget;
-    return this.tokenUsage.total >= perTask;
+    return this.tokenUsage.total >= perTask || this.sessionUsage.total >= perSession;
   }
 
   _trackTokens(roleId, tokens) {
     this.tokenUsage.total += tokens;
     this.tokenUsage.calls += 1;
     this.tokenUsage.byRole[roleId] = (this.tokenUsage.byRole[roleId] || 0) + tokens;
+    this.sessionUsage.total += tokens;
+    this.sessionUsage.calls += 1;
   }
 
   get engineStatus() {
@@ -262,6 +272,7 @@ class HarnessAdapter {
       configured, engine, model, endpoint, keySource,
       mode: engine === 'mock' ? '演示模式（不发真实请求）' : '真实 LLM 调用',
       tokenUsage: { ...this.tokenUsage },
+      sessionUsage: { ...this.sessionUsage },
       budget: { perTask: budget.perTask, perSession: budget.perSession, exceeded: this.isBudgetExceeded },
     };
   }
@@ -289,8 +300,11 @@ class HarnessAdapter {
    */
   async _postChat(messages, roleId, tools) {
     if (this.isBudgetExceeded) {
-      const { perTask } = this.tokenBudget;
-      return { ok: false, error: `Token 预算超限（已用 ${this.tokenUsage.total} / 上限 ${perTask}），暂停派发。`, duration_ms: 0 };
+      const { perTask, perSession } = this.tokenBudget;
+      const scope = this.tokenUsage.total >= perTask
+        ? `任务级（已用 ${this.tokenUsage.total} / 上限 ${perTask}）`
+        : `会话级（已用 ${this.sessionUsage.total} / 上限 ${perSession}）`;
+      return { ok: false, error: `Token 预算超限：${scope}，暂停派发。`, duration_ms: 0 };
     }
 
     const started = Date.now();
