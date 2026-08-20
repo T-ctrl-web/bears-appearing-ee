@@ -721,6 +721,8 @@ body {
       style="margin-left:8px;background:rgba(108,142,239,0.15);color:var(--accent);border:1px solid rgba(108,142,239,0.35);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">设置</button>
     <button id="openWorkspace" title="查看当前任务工作区产物"
       style="margin-left:4px;background:rgba(74,196,160,0.15);color:var(--accent2);border:1px solid rgba(74,196,160,0.35);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">工作区</button>
+    <button id="openQueue" title="任务队列"
+      style="margin-left:4px;background:rgba(240,160,75,0.15);color:var(--warn);border:1px solid rgba(240,160,75,0.35);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:none;">排队 0</button>
   </div>
 </div>
 
@@ -1593,6 +1595,8 @@ function applyServerState(s) {
   if (s.task) {
     document.getElementById('taskName').textContent = s.task.title || '执行中';
   }
+  // 任务队列徽标（SSE 推送驱动）
+  if (window.__mavisUpdateQueue) window.__mavisUpdateQueue(s.taskQueue || []);
 
   s.roles.forEach(r => {
     if (roleStates[r.id]) {
@@ -1692,6 +1696,16 @@ updateProgress(0, 0);
     </div>
   </div>
 </div>
+<!-- 队列面板 -->
+<div id="queueModal" style="display:none;position:fixed;inset:0;background:rgba(8,10,16,0.6);z-index:997;align-items:center;justify-content:center;">
+  <div style="width:min(560px,92vw);max-height:70vh;display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--rule);border-radius:12px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:600;color:var(--ink);">任务队列</div>
+      <span id="queueClose" style="cursor:pointer;color:var(--muted);font-size:18px;">✕</span>
+    </div>
+    <div id="queueList" style="flex:1;overflow:auto;"></div>
+  </div>
+</div>
 </body>
 <script>
 (function () {
@@ -1738,6 +1752,54 @@ updateProgress(0, 0);
       el.style.color = real ? 'var(--success)' : 'var(--warn)';
     }
   } catch (e) { if (el) el.textContent = '引擎未知'; }
+})();
+// 任务队列：徽标 + 面板（数据来自 SSE state.taskQueue）
+(function () {
+  let queue = [];
+  const badge = document.getElementById('openQueue');
+  const modal = document.getElementById('queueModal');
+  const listEl = document.getElementById('queueList');
+  function renderBadge() {
+    badge.style.display = queue.length ? '' : 'none';
+    badge.textContent = '排队 ' + queue.length;
+  }
+  function renderList() {
+    if (!queue.length) { listEl.innerHTML = '<div style="color:var(--muted);font-size:13px;">（队列为空）</div>'; return; }
+    listEl.innerHTML = '';
+    queue.forEach((q, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--rule);font-size:13px;color:var(--ink);';
+      const prColor = q.priority === 'P0' ? 'var(--danger)' : q.priority === 'P2' ? 'var(--muted)' : 'var(--accent)';
+      row.innerHTML = '<span style="color:' + prColor + ';font-weight:600;min-width:24px;">' + (q.priority || 'P1') + '</span>'
+        + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (q.requirement || '') + '">' + (q.title || q.requirement || '未命名任务') + '</span>';
+      const btn = document.createElement('button');
+      btn.textContent = '取消';
+      btn.style.cssText = 'background:rgba(232,93,93,0.12);color:var(--danger);border:1px solid rgba(232,93,93,0.3);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;';
+      btn.onclick = async () => {
+        try {
+          await fetch('/api/sm/queue/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: i }) });
+          renderQueue(); // SSE 也会推送刷新，这里立即拉一次
+        } catch (e) {}
+      };
+      row.appendChild(btn);
+      listEl.appendChild(row);
+    });
+  }
+  async function renderQueue() {
+    try {
+      const d = await (await fetch('/api/sm/queue')).json();
+      queue = d.queue || [];
+      renderBadge();
+      renderList();
+    } catch (e) {}
+  }
+  window.__mavisUpdateQueue = function (taskQueue) {
+    queue = taskQueue || [];
+    renderBadge();
+    if (modal.style.display === 'flex') renderList();
+  };
+  badge.addEventListener('click', () => { modal.style.display = 'flex'; renderQueue(); });
+  document.getElementById('queueClose').addEventListener('click', () => modal.style.display = 'none');
 })();
 // 工作区面板：列出当前任务产物，点击查看内容
 (function () {

@@ -4,6 +4,12 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
+// 测试隔离：在 require 引擎模块前把用户数据目录指到临时目录，
+// 避免测试的工作区/持久化状态污染真实 ~/.mavis（state-backup.json、workspaces/）
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+process.env.MAVIS_USER_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'mavis-test-'));
 const stateModule = require('../../server/state');
 const { StateMachine } = require('../state-machine');
 const { TeamRunner } = require('../team-runner');

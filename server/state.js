@@ -131,6 +131,14 @@ function dequeueTask() {
   return next;
 }
 
+/** 按下标移除一个排队任务（取消），返回被移除项 */
+function removeQueuedTask(index) {
+  if (index < 0 || index >= state.taskQueue.length) return null;
+  const [removed] = state.taskQueue.splice(index, 1);
+  notify();
+  return removed;
+}
+
 function resetTask() {
   state.roles = ROLES.map(r => ({ ...r, status: 'IDLE', task: '', startTime: null, endTime: null }));
   state.task = null;
@@ -214,6 +222,7 @@ module.exports = {
   completeTask,
   enqueueTask,
   dequeueTask,
+  removeQueuedTask,
   addTokenUsage,
   getTokenUsage,
 };
