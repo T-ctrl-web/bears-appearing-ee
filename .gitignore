@@ -16,3 +16,7 @@ Thumbs.db
 
 # 构建产物（含 base64 内嵌图片，体积大，可由 build-standalone.js 重新生成）
 dashboard-standalone.html
+
+# 废弃的旧图片（已被 3D 版本替代）
+assets/characters/char-*.jpg
+assets/sprites/
