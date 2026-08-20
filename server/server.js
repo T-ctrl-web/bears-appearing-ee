@@ -21,6 +21,7 @@ const {
 
 const { TeamRunner } = require('../engine/team-runner');
 const { HarnessAdapter } = require('../engine/harness-adapter');
+const { ToolExecutor } = require('../engine/tool-executor');
 const settings = require('./settings');
 const harness = new HarnessAdapter();
 const runner = new TeamRunner({ getState, addLog, resetTask, startTask, setRoleStatus, addWave, setWaveStatus, completeTask, ROLES }, { harness });
@@ -279,6 +280,26 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/sm/reset' && req.method === 'POST') {
     runner.reset();
     sendJson(res, 200, { ok: true, state: 'IDLE' });
+    return;
+  }
+
+  // 工作区产物查看（工具层）：仅限当前任务工作区，路径禁闭防越界
+  if (p === '/api/workspace/list' && req.method === 'GET') {
+    const ws = runner.currentTask?.workspace;
+    if (!ws) { sendJson(res, 404, { error: '当前任务无工作区' }); return; }
+    try {
+      const ex = new ToolExecutor(ws);
+      sendJson(res, 200, { workspace: ws, files: ex.listDir('.') });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+  if (p === '/api/workspace/file' && req.method === 'GET') {
+    const ws = runner.currentTask?.workspace;
+    const rel = url.searchParams.get('path') || '';
+    if (!ws) { sendJson(res, 404, { error: '当前任务无工作区' }); return; }
+    const ex = new ToolExecutor(ws);
+    try { sendJson(res, 200, { path: rel, content: ex.readFile(rel) }); }
+    catch (e) { sendJson(res, 400, { error: e.message }); }
     return;
   }
 

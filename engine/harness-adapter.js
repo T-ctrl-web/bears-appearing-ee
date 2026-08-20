@@ -18,6 +18,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  ToolExecutor, WORKER_TOOLS, VERIFIER_TOOLS,
+  WORKSPACE_RULES_WORKER, WORKSPACE_RULES_VERIFIER, MAX_TOOL_ROUNDS,
+} = require('./tool-executor');
 
 const ROOT = path.resolve(__dirname, '..');
 const REAL_CONFIG_PATH = path.join(ROOT, 'config', 'harness-config.json');
@@ -257,10 +261,27 @@ class HarnessAdapter {
   }
 
   /**
-   * 底层对话调用（Worker 与 Verifier 共用）
+   * 底层对话调用（Worker 与 Verifier 共用，单轮）
    * @returns {Promise<{ok: boolean, content?: string, error?: string, duration_ms: number, tokens?: number}>}
    */
   async _chatCompletion(systemPrompt, userPrompt, roleId = 'unknown') {
+    const r = await this._postChat(
+      [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      roleId,
+      null
+    );
+    // 兼容旧语义：空内容视为失败
+    if (r.ok && !r.content) {
+      return { ok: false, error: 'API 返回空内容', duration_ms: r.duration_ms };
+    }
+    return r;
+  }
+
+  /**
+   * POST /chat/completions：messages + 可选 tools，返回 message 级原始结构。
+   * 单轮不带循环；预算检查与 token 计量在此统一处理。
+   */
+  async _postChat(messages, roleId, tools) {
     if (this.isBudgetExceeded) {
       const { perTask } = this.tokenBudget;
       return { ok: false, error: `Token 预算超限（已用 ${this.tokenUsage.total} / 上限 ${perTask}），暂停派发。`, duration_ms: 0 };
@@ -270,21 +291,23 @@ class HarnessAdapter {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
     try {
+      const body = {
+        model: this.config.model,
+        messages,
+        max_tokens: this.config.maxTokens,
+        temperature: this.config.temperature,
+      };
+      if (tools && tools.length) {
+        body.tools = tools;
+        body.tool_choice = 'auto';
+      }
       const res = await fetch(this.config.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.config.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          max_tokens: this.config.maxTokens,
-          temperature: this.config.temperature,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 
@@ -294,14 +317,18 @@ class HarnessAdapter {
       }
 
       const data = await res.json();
-      const content = data.choices?.[0]?.message?.content || '';
+      const msg = data.choices?.[0]?.message || {};
       const tokens = data.usage?.total_tokens || 0;
       if (tokens > 0) this._trackTokens(roleId, tokens);
-
-      if (!content) {
-        return { ok: false, error: 'API 返回空内容', duration_ms: Date.now() - started };
-      }
-      return { ok: true, content, duration_ms: Date.now() - started, tokens };
+      return {
+        ok: true,
+        message: msg,            // { content, tool_calls? }
+        content: msg.content || '',
+        toolCalls: msg.tool_calls || null,
+        finishReason: data.choices?.[0]?.finish_reason || '',
+        duration_ms: Date.now() - started,
+        tokens,
+      };
     } catch (e) {
       const msg = e.name === 'AbortError' ? `超时（${this.config.timeoutMs}ms）` : e.message;
       return { ok: false, error: msg, duration_ms: Date.now() - started };
@@ -311,11 +338,58 @@ class HarnessAdapter {
   }
 
   /**
+   * Agent Loop：带工具的多轮对话（DeepSeek function calling）。
+   * LLM 请求 tool_calls → 本地执行（沙箱）→ 结果回填 → 直到终答或轮次/预算上限。
+   * @returns {Promise<{ok, content, rounds, toolCalls, duration_ms, tokens, truncated?}>}
+   */
+  async _chatWithTools(systemPrompt, userPrompt, roleId, tools, executor) {
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ];
+    const started = Date.now();
+    let tokens = 0;
+    let toolCallCount = 0;
+
+    for (let round = 1; round <= MAX_TOOL_ROUNDS; round++) {
+      const r = await this._postChat(messages, roleId, tools);
+      tokens += r.tokens || 0;
+      if (!r.ok) return { ok: false, error: r.error, duration_ms: Date.now() - started, tokens, rounds: round - 1, toolCalls: toolCallCount };
+
+      const calls = r.toolCalls && r.toolCalls.length ? r.toolCalls : null;
+      if (!calls) {
+        // 终答
+        return { ok: true, content: r.content || '', rounds: round, toolCalls: toolCallCount, duration_ms: Date.now() - started, tokens };
+      }
+
+      // 执行工具调用并回填
+      messages.push({ role: 'assistant', content: r.content || '', tool_calls: calls });
+      for (const call of calls) {
+        toolCallCount++;
+        const fn = call.function || {};
+        const exec = executor.executeToolCall(fn.name, fn.arguments);
+        const reply = exec.ok
+          ? String(exec.result).slice(0, 8000) // 回填上限，防止上下文爆炸
+          : `ERROR: ${exec.error}`;
+        messages.push({ role: 'tool', tool_call_id: call.id, content: reply });
+      }
+    }
+
+    // 轮次超限：强制收尾，要求只给最终总结
+    messages.push({ role: 'user', content: '工具调用轮次已到上限，请立即停止调用工具，直接给出最终总结。' });
+    const fin = await this._postChat(messages, roleId, null); // 收尾不带 tools
+    tokens += fin.tokens || 0;
+    if (!fin.ok) return { ok: false, error: fin.error, duration_ms: Date.now() - started, tokens, rounds: MAX_TOOL_ROUNDS, toolCalls: toolCallCount };
+    return { ok: true, content: fin.content || '', rounds: MAX_TOOL_ROUNDS + 1, toolCalls: toolCallCount, duration_ms: Date.now() - started, tokens, truncated: true };
+  }
+
+  /**
    * 执行单个 Worker 任务，返回统一结果格式（见设计文档「输出（统一格式）」）
-   * @param {object} input - { roleId, task, context }
+   * @param {object} input - { roleId, task, context, workspace }
+   *   workspace：任务工作区目录（可选）。提供时启用工具 Agent Loop，产出落成真实文件。
    * @returns {Promise<{roleId, assignee, engine, status, output, duration_ms, error}>}
    */
-  async executeWorker({ roleId, task, context }) {
+  async executeWorker({ roleId, task, context, workspace }) {
     const roleInfo = this.roleMap[roleId] || { id: roleId, name: roleId, role: '' };
     const base = { roleId, assignee: roleInfo.name || roleId, engine: this.config.engine, duration_ms: 0, error: null };
 
@@ -329,6 +403,28 @@ class HarnessAdapter {
       };
     }
 
+    // 带工作区：Agent Loop（write_file/read_file/list_dir），产出为真实文件
+    if (workspace) {
+      const executor = new ToolExecutor(workspace);
+      const before = new Set(executor.isEmpty() ? [] : executor.listDir('.'));
+      const sys = buildSystemPrompt(roleInfo) + '\n\n' + WORKSPACE_RULES_WORKER;
+      const r = await this._chatWithTools(sys, buildUserPrompt({ roleInfo, task, context }), roleId, WORKER_TOOLS, executor);
+      if (!r.ok) return { ...base, status: 'failed', output: null, error: r.error, duration_ms: r.duration_ms };
+      const after = executor.listDir('.');
+      const written = after.filter(p => !before.has(p));
+      const filesNote = after.length
+        ? `\n\n## 工作区产出（${after.length} 个文件，本轮新增 ${written.length}）\n${after.map(p => `- ${p}`).join('\n')}`
+        : '\n\n## 工作区产出\n（未写入任何文件——注意：工具可用时产出物必须落盘）';
+      return {
+        ...base,
+        status: 'success',
+        output: r.content + filesNote,
+        duration_ms: r.duration_ms,
+        tokens: r.tokens,
+        meta: { rounds: r.rounds, toolCalls: r.toolCalls, truncated: !!r.truncated, workspace, files: after },
+      };
+    }
+
     const r = await this._chatCompletion(buildSystemPrompt(roleInfo), buildUserPrompt({ roleInfo, task, context }), roleId);
     if (!r.ok) return { ...base, status: 'failed', output: null, error: r.error, duration_ms: r.duration_ms };
     return { ...base, status: 'success', output: r.content, duration_ms: r.duration_ms, tokens: r.tokens || 0 };
@@ -336,10 +432,10 @@ class HarnessAdapter {
 
   /**
    * 执行 Verifier 对抗审查（真实 LLM 评审 Worker 产出，返回结构化结论）
-   * @param {object} input - { verifierId, level, task, outputs, iteration, maxIterations }
-   * @returns {Promise<{verifierId, assignee, engine, status, passed, issues, verdict, raw, parsed, duration_ms, error}>}
+   * @param {object} input - { verifierId, level, task, outputs, iteration, maxIterations, workspace }
+   *   workspace：提供时启用只读工具，Verifier 可直接查看真实产出文件做客观验证。
    */
-  async executeVerifier({ verifierId, level = 'level_1', task, outputs, iteration = 1, maxIterations = 3 }) {
+  async executeVerifier({ verifierId, level = 'level_1', task, outputs, iteration = 1, maxIterations = 3, workspace }) {
     const roleInfo = this.roleMap[verifierId] || { id: verifierId, name: verifierId, role: 'Verifier' };
     const levelRules = (this.verificationRules.levels || {})[level] || null;
     const base = { verifierId, assignee: roleInfo.name || verifierId, engine: this.config.engine, duration_ms: 0, error: null };
@@ -360,6 +456,23 @@ class HarnessAdapter {
       };
     }
 
+    // 带工作区：Verifier Agent Loop（只读工具），基于真实文件审查
+    if (workspace) {
+      const executor = new ToolExecutor(workspace);
+      let treeNote = '（工作区为空）';
+      try {
+        const files = executor.listDir('.');
+        if (files.length) treeNote = files.map(p => `- ${p}`).join('\n');
+      } catch { /* 保持默认 */ }
+      const sys = buildVerifierSystemPrompt(roleInfo, levelRules) + '\n\n' + WORKSPACE_RULES_VERIFIER;
+      const user = `## 工作区文件清单\n${treeNote}\n\n` + buildVerifierUserPrompt({ task, outputs, iteration, maxIterations });
+      const r = await this._chatWithTools(sys, user, verifierId, VERIFIER_TOOLS, executor);
+      if (!r.ok) {
+        return { ...base, status: 'failed', passed: null, issues: [], verdict: '', raw: null, parsed: false, error: r.error, duration_ms: r.duration_ms };
+      }
+      return { ...base, status: 'success', ...parseVerdict(r.content), raw: r.content, duration_ms: r.duration_ms, tokens: r.tokens, toolCalls: r.toolCalls };
+    }
+
     const r = await this._chatCompletion(
       buildVerifierSystemPrompt(roleInfo, levelRules),
       buildVerifierUserPrompt({ task, outputs, iteration, maxIterations }),
@@ -368,7 +481,7 @@ class HarnessAdapter {
     if (!r.ok) {
       return { ...base, status: 'failed', passed: null, issues: [], verdict: '', raw: null, parsed: false, error: r.error, duration_ms: r.duration_ms };
     }
-    return { ...base, status: 'success', ...parseVerdict(r.content), raw: r.content, duration_ms: r.duration_ms };
+    return { ...base, status: 'success', ...parseVerdict(r.content), raw: r.content, duration_ms: r.duration_ms, tokens: r.tokens || 0 };
   }
 }
 
