@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 3121;
+const PORT = Number(process.env.PORT) || 3121;
 const ROOT = path.resolve(__dirname, '..');
 const DASHBOARD = path.join(ROOT, 'dashboard.html');
 
@@ -21,6 +21,7 @@ const {
 
 const { TeamRunner } = require('../engine/team-runner');
 const { HarnessAdapter } = require('../engine/harness-adapter');
+const settings = require('./settings');
 const harness = new HarnessAdapter();
 const runner = new TeamRunner({ getState, addLog, resetTask, startTask, setRoleStatus, addWave, setWaveStatus, completeTask, ROLES }, { harness });
 
@@ -107,6 +108,26 @@ const server = http.createServer(async (req, res) => {
 
   if (p === '/api/state' && req.method === 'GET') { sendJson(res, 200, getState()); return; }
   if (p === '/api/harness/status' && req.method === 'GET') { sendJson(res, 200, harness.engineStatus); return; }
+
+  // 用户设置：看板内配置 API Key / 模型（持久化到用户数据目录，保存即热更新 harness）
+  if (p === '/api/settings' && req.method === 'GET') {
+    const saved = settings.loadUserSettings();
+    sendJson(res, 200, { saved, harness: harness.engineStatus });
+    return;
+  }
+  if (p === '/api/settings' && req.method === 'POST') {
+    const body = await readBody(req);
+    const next = {};
+    if (typeof body.api_key === 'string') {
+      next.api_key = String(body.api_key).trim().replace(/^sk-/, '') ? String(body.api_key).trim() : '';
+    }
+    if (typeof body.model === 'string' && body.model.trim()) next.model = String(body.model).trim();
+    if (next.api_key !== undefined) next.api_key = next.api_key || '';
+    settings.saveUserSettings(next);
+    harness.applyUserSettings();
+    sendJson(res, 200, { ok: true, harness: harness.engineStatus });
+    return;
+  }
   if (p === '/api/roles' && req.method === 'GET') { sendJson(res, 200, ROLES); return; }
   if (p === '/api/logs' && req.method === 'GET') { sendJson(res, 200, getState().logs); return; }
 

@@ -26,6 +26,19 @@ const VERIFICATION_RULES_PATH = path.join(ROOT, 'config', 'verification-rules.js
 
 const PLACEHOLDER_KEYS = new Set(['', 'YOUR_DEEPSEEK_API_KEY']);
 
+// 用户设置（desktop 看板界面填写的 API Key/模型）持久化在用户数据目录，
+// 优先级：用户设置 > 环境变量 > config/harness-config.json > 默认
+function loadUserSettings() {
+  try {
+    const p = path.join(
+      process.env.MAVIS_USER_DATA || require('os').homedir() + '/.mavis',
+      'user-settings.json'
+    );
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8')) || {};
+  } catch { /* 忽略 */ }
+  return {};
+}
+
 function loadBaseConfig() {
   let dsConfig = {};
   try {
@@ -33,18 +46,19 @@ function loadBaseConfig() {
     dsConfig = (cfg.engines && cfg.engines.deepseek && cfg.engines.deepseek.config) || {};
   } catch { /* 无真实配置文件，走环境变量/mock */ }
 
-  const apiKey = process.env.DEEPSEEK_API_KEY || dsConfig.api_key || '';
-  const configured = !PLACEHOLDER_KEYS.has(String(apiKey).trim());
+  const user = loadUserSettings();
+  const apiKey = String(user.api_key || process.env.DEEPSEEK_API_KEY || dsConfig.api_key || '');
+  const configured = !PLACEHOLDER_KEYS.has(apiKey.trim());
 
   return {
     engine: configured ? 'deepseek' : 'mock',
     configured,
     apiKey: configured ? apiKey : null,
-    keySource: process.env.DEEPSEEK_API_KEY ? 'env' : configured ? 'config' : 'none',
+    keySource: user.api_key ? 'user-settings' : process.env.DEEPSEEK_API_KEY ? 'env' : configured ? 'config' : 'none',
     endpoint: dsConfig.endpoint || 'https://api.deepseek.com/v1/chat/completions',
-    model: dsConfig.model || 'deepseek-chat',
+    model: user.model || dsConfig.model || 'deepseek-chat',
     maxTokens: dsConfig.max_tokens || 8192,
-    temperature: dsConfig.temperature ?? 0.7,
+    temperature: user.temperature ?? dsConfig.temperature ?? 0.7,
     timeoutMs: dsConfig.timeout_ms || 120000,
   };
 }
@@ -82,7 +96,8 @@ function buildSystemPrompt(roleInfo) {
 function buildUserPrompt({ roleInfo, task, context }) {
   const parts = [`## 任务\n${task || '（未提供任务描述）'}`];
   if (context) parts.push(`## 上下文\n${context}`);
-  parts.push(`## 输出要求\n以 ${roleInfo.name || roleInfo.id}（${roleInfo.role || 'Worker'}）的身份完成上述任务，直接给出你的产出内容，不要解释你将要做什么。`);
+  parts.push(`## 输出要求\n以 ${roleInfo.name || roleInfo.id}（${roleInfo.role || 'Worker'}）的身份完成上述任务，直接给出你的产出内容，不要解释你将要做什么。
+产出必须严格贴合本任务主题，只交付任务明确要求的内容；严禁擅自展开与任务无关的其它功能、模块或业务，也不要编造任务未要求的领域。凡与任务无关的内容一律不要出现。`);
   return parts.join('\n\n');
 }
 
@@ -109,7 +124,7 @@ function buildVerifierUserPrompt({ task, outputs, iteration, maxIterations }) {
     `## 待审查任务\n${task || '（未提供任务描述）'}`,
     `## Worker 产出\n${outputsText}`,
     `## 迭代轮次\n第 ${iteration} 轮（最多 ${maxIterations} 轮，超限终审失败）`,
-    '## 输出要求\n先简要给出审查意见（按你的角色风格），最后必须单独一行输出合法 JSON 作为最终结论：\n{"passed": false, "issues": ["问题1", "问题2"], "verdict": "一句话结论"}\npassed=true 表示通过放行；passed=false 表示驳回重跑。issues 为发现的问题列表（通过时可为空数组）。',
+    '## 输出要求\n先简要给出审查意见（按你的角色风格），最后必须单独一行输出合法 JSON 作为最终结论：\n{"passed": false, "issues": ["问题1", "问题2"], "verdict": "一句话结论"}\npassed=true 表示通过放行；passed=false 表示驳回重跑。issues 为发现的问题列表（通过时可为空数组）。\n贴合性是硬性条件：只要产出与任务无关、明显跑题、或未覆盖任务的核心要求，passed 就必须为 false，且 issues 里第一个问题必须以\u201c跑题\u201d标注。',
   ].join('\n\n');
 }
 
@@ -194,6 +209,20 @@ class HarnessAdapter {
     this.verificationRules = loadVerificationRules();
     this.costConfig = loadCostConfig();
     this.tokenUsage = { total: 0, byRole: {}, calls: 0 };
+  }
+
+  /**
+   * 热更新：重读用户数据目录中的设置并刷新引擎配置（保存设置后立即生效，无需重启）。
+   */
+  applyUserSettings() {
+    const fresh = loadBaseConfig();
+    this.config.engine = fresh.engine;
+    this.config.configured = fresh.configured;
+    this.config.apiKey = fresh.apiKey;
+    this.config.keySource = fresh.keySource;
+    this.config.model = fresh.model;
+    this.config.temperature = fresh.temperature;
+    return this;
   }
 
   get tokenBudget() {
