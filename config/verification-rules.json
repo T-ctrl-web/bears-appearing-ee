@@ -5,17 +5,18 @@
   "levels": {
     "level_1": {
       "name": "柔性审查",
-      "description": "Verifier 对产出做基础检查，发现问题提出建议但不强制驳回",
+      "description": "Verifier 对产出做基础检查，发现问题提出建议，enforce_reject=false 时不驳回，true 时驳回",
       "active": true,
       "max_iterations": 1,
       "assigned_to": "吉吉国王",
+      "enforce_reject": true,
       "checklist": [
         "产出是否完整覆盖任务要求",
         "代码/文档是否有明显语法错误",
         "是否有遗漏的边界情况",
         "产出格式是否符合规范"
       ],
-      "on_fail": "输出审查报告，标注问题，建议修改但允许放行"
+      "on_fail": "输出审查报告，标注问题。enforce_reject=true 时驳回重跑，false 时仅建议"
     },
     "level_2": {
       "name": "标准审查",

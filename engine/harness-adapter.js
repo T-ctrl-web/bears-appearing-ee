@@ -127,7 +127,7 @@ function normalizeVerdict(o) {
  *   1) 逐个尝试文本中的扁平 JSON 对象（取最后一个含 passed 的）
  *   2) 宽松截取首个 { 到末尾 } 的片段（允许 issues 含嵌套）
  *   3) 关键词回退（驳回/不通过 → false；通过/放行 → true）
- *   4) 均失败 → 默认放行并标记 parsed:false（避免格式抖动卡死流程）
+ * 4) 均失败 → 默认拒绝并标记 parsed:false（宁可误杀不可放行）
  */
 function parseVerdict(text) {
   const s = String(text || '');
@@ -143,12 +143,12 @@ function parseVerdict(text) {
     try { return normalizeVerdict(JSON.parse(m[0])); } catch { /* 落入关键词回退 */ }
   }
   if (/(驳回|不通过|不予放行|不达标|failed)/i.test(s)) {
-    return { passed: false, issues: [], verdict: '（关键词判定：驳回）', parsed: false };
+    return { passed: false, issues: ['（关键词判定：驳回）'], verdict: '关键词判定：驳回', parsed: false };
   }
   if (/(通过|放行|passed)/i.test(s)) {
-    return { passed: true, issues: [], verdict: '（关键词判定：通过）', parsed: false };
+    return { passed: true, issues: [], verdict: '关键词判定：通过', parsed: false };
   }
-  return { passed: true, issues: [], verdict: '（无法解析审查结论，默认放行）', parsed: false };
+  return { passed: false, issues: ['无法解析审查结论，默认拒绝（需人工确认）'], verdict: '无法解析审查结论，默认拒绝', parsed: false };
 }
 
 /**
@@ -168,6 +168,16 @@ async function mapLimit(items, limit, fn) {
   return results;
 }
 
+const COST_CONTROL_PATH = path.join(ROOT, 'config', 'cost-control.json');
+
+function loadCostConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(COST_CONTROL_PATH, 'utf-8'));
+  } catch {
+    return { token_budget: { per_task: 500000, per_session: 2000000, on_exceed: 'pause' } };
+  }
+}
+
 class HarnessAdapter {
   constructor(overrides = {}) {
     this.config = { ...loadBaseConfig(), ...overrides };
@@ -182,18 +192,51 @@ class HarnessAdapter {
     }
     this.roleMap = loadRoleMap();
     this.verificationRules = loadVerificationRules();
+    this.costConfig = loadCostConfig();
+    this.tokenUsage = { total: 0, byRole: {}, calls: 0 };
+  }
+
+  get tokenBudget() {
+    const budget = this.costConfig.token_budget || {};
+    return {
+      perTask: budget.per_task || 500000,
+      perSession: budget.per_session || 2000000,
+      onExceed: budget.on_exceed || 'pause',
+    };
+  }
+
+  get isBudgetExceeded() {
+    const { perTask, perSession } = this.tokenBudget;
+    return this.tokenUsage.total >= perTask;
+  }
+
+  _trackTokens(roleId, tokens) {
+    this.tokenUsage.total += tokens;
+    this.tokenUsage.calls += 1;
+    this.tokenUsage.byRole[roleId] = (this.tokenUsage.byRole[roleId] || 0) + tokens;
   }
 
   get engineStatus() {
     const { configured, engine, model, endpoint, keySource } = this.config;
-    return { configured, engine, model, endpoint, keySource, mode: engine === 'mock' ? '演示模式（不发真实请求）' : '真实 LLM 调用' };
+    const budget = this.tokenBudget;
+    return {
+      configured, engine, model, endpoint, keySource,
+      mode: engine === 'mock' ? '演示模式（不发真实请求）' : '真实 LLM 调用',
+      tokenUsage: { ...this.tokenUsage },
+      budget: { perTask: budget.perTask, perSession: budget.perSession, exceeded: this.isBudgetExceeded },
+    };
   }
 
   /**
    * 底层对话调用（Worker 与 Verifier 共用）
-   * @returns {Promise<{ok: boolean, content?: string, error?: string, duration_ms: number}>}
+   * @returns {Promise<{ok: boolean, content?: string, error?: string, duration_ms: number, tokens?: number}>}
    */
-  async _chatCompletion(systemPrompt, userPrompt) {
+  async _chatCompletion(systemPrompt, userPrompt, roleId = 'unknown') {
+    if (this.isBudgetExceeded) {
+      const { perTask } = this.tokenBudget;
+      return { ok: false, error: `Token 预算超限（已用 ${this.tokenUsage.total} / 上限 ${perTask}），暂停派发。`, duration_ms: 0 };
+    }
+
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
@@ -223,10 +266,13 @@ class HarnessAdapter {
 
       const data = await res.json();
       const content = data.choices?.[0]?.message?.content || '';
+      const tokens = data.usage?.total_tokens || 0;
+      if (tokens > 0) this._trackTokens(roleId, tokens);
+
       if (!content) {
         return { ok: false, error: 'API 返回空内容', duration_ms: Date.now() - started };
       }
-      return { ok: true, content, duration_ms: Date.now() - started };
+      return { ok: true, content, duration_ms: Date.now() - started, tokens };
     } catch (e) {
       const msg = e.name === 'AbortError' ? `超时（${this.config.timeoutMs}ms）` : e.message;
       return { ok: false, error: msg, duration_ms: Date.now() - started };
@@ -250,12 +296,13 @@ class HarnessAdapter {
         ...base,
         status: 'success',
         output: `[mock] ${roleInfo.name || roleId}（${roleInfo.role || 'Worker'}）完成任务：${task || '（无描述）'}`,
+        isMock: true,
       };
     }
 
-    const r = await this._chatCompletion(buildSystemPrompt(roleInfo), buildUserPrompt({ roleInfo, task, context }));
+    const r = await this._chatCompletion(buildSystemPrompt(roleInfo), buildUserPrompt({ roleInfo, task, context }), roleId);
     if (!r.ok) return { ...base, status: 'failed', output: null, error: r.error, duration_ms: r.duration_ms };
-    return { ...base, status: 'success', output: r.content, duration_ms: r.duration_ms };
+    return { ...base, status: 'success', output: r.content, duration_ms: r.duration_ms, tokens: r.tokens || 0 };
   }
 
   /**
@@ -280,12 +327,14 @@ class HarnessAdapter {
         issues: hasFailure ? ['存在执行失败或空产出'] : [],
         verdict: hasFailure ? '（mock）存在失败产出，驳回' : '（mock）审查通过',
         raw: '',
+        isMock: true,
       };
     }
 
     const r = await this._chatCompletion(
       buildVerifierSystemPrompt(roleInfo, levelRules),
-      buildVerifierUserPrompt({ task, outputs, iteration, maxIterations })
+      buildVerifierUserPrompt({ task, outputs, iteration, maxIterations }),
+      verifierId
     );
     if (!r.ok) {
       return { ...base, status: 'failed', passed: null, issues: [], verdict: '', raw: null, parsed: false, error: r.error, duration_ms: r.duration_ms };

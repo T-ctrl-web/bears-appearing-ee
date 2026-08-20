@@ -1,11 +1,17 @@
 {
-  "version": "2.0.0",
-  "description": "成本控制配置 — Phase 2 复杂任务支持更多 subagent",
+  "version": "3.0.0",
+  "description": "成本控制配置 — Phase 3 新增 token 预算熔断",
 
   "subagent_limit": {
     "per_task": 12,
     "per_session": 30,
     "on_exceed": "暂停派发，输出当前进度和原因，问用户是否追加预算"
+  },
+
+  "token_budget": {
+    "per_task": 500000,
+    "per_session": 2000000,
+    "on_exceed": "暂停派发，输出 token 用量和预算超限原因，问用户是否追加预算"
   },
 
   "verification_iteration_limit": {

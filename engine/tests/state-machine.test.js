@@ -268,17 +268,17 @@ test('审查闭环：驳回后自动重跑，二次通过后自动交付', async
   assert.deepEqual(r.currentTask.verification.issues, []);
 });
 
-test('审查闭环：L1 柔性审查不强制驳回（问题仅作建议）', async () => {
+test('审查闭环：L1 强制驳回（enforce_reject=true 默认）', async () => {
   const r = new TeamRunner(stateModule, { harness: fakeHarness({ reject: 'always' }) });
   r.reset();
-  // medium → level_1 柔性
+  // medium → level_1，enforce_reject 默认 true → 驳回
   r.startTask({ requirement: '新增导出页面', complexity: 'medium', autoExecute: true });
   r.completeDrafting();
   r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: '实现页面' });
   await waitState(r, ['COMPLETED', 'FAILED']);
-  assert.equal(r.currentState, 'COMPLETED');
-  assert.equal(r.currentTask.verification.passed, true);
-  assert.equal(r.currentTask.verification.issues.length, 1); // 建议保留但不驳回
+  // L1 enforce_reject=true 时驳回，迭代超限后 FAILED
+  assert.equal(r.currentState, 'FAILED');
+  assert.equal(r.currentTask.verification.passed, false);
 });
 
 test('审查闭环：持续驳回达迭代上限 → FAILED（有界）', async () => {
@@ -294,14 +294,15 @@ test('审查闭环：持续驳回达迭代上限 → FAILED（有界）', async 
   assert.equal(r.currentTask.status, 'failed');
 });
 
-test('审查闭环：审查 API 失败自动放行防卡死', async () => {
+test('审查闭环：审查 API 失败默认拒绝防放行', async () => {
   const r = new TeamRunner(stateModule, { harness: fakeHarness({ verifierError: true }) });
   r.reset();
   r.startTask({ requirement: '开发功能', complexity: 'complex', autoExecute: true });
   r.completeDrafting();
   r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: 'x' });
   await waitState(r, ['COMPLETED', 'FAILED']);
-  assert.equal(r.currentState, 'COMPLETED');
+  // 审查调用失败 → 默认拒绝 → 迭代重跑 → 超限 FAILED
+  assert.equal(r.currentState, 'FAILED');
   const logs = stateModule.getState().logs;
   assert.ok(logs.some(l => l.level === 'error' && /审查调用失败/.test(l.message)), '应有审查失败日志');
 });

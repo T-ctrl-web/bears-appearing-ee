@@ -211,19 +211,23 @@ class TeamRunner {
       });
       if (!this.ctx || this.currentState === 'IDLE') return verdict; // 任务已被重置，丢弃过期结论
 
-      // 审查调用本身失败：放行防卡死，但明确记录错误
+      // 审查调用本身失败：默认拒绝，记录错误，升级用户决策
       let passed;
       if (verdict.status === 'failed') {
-        passed = true;
-        this.ctx.log('error', `审查调用失败，本轮自动放行（${verdict.error}）`, verifierId);
+        passed = false;
+        this.ctx.log('error', `审查调用失败，默认拒绝（${verdict.error}）。需人工确认是否放行`, verifierId);
       } else {
         passed = verdict.passed;
       }
 
-      // L1 柔性审查：问题仅作建议，不强制驳回（verification-rules.json level_1.on_fail）
-      if (!passed && level === 'level_1' && verdict.status !== 'failed') {
+      // L1 柔性审查：问题记录为建议，但不强制驳回（可配置）
+      const l1Config = this.harness?.verificationRules?.levels?.level_1 || {};
+      const l1Enforce = l1Config.enforce_reject !== false;
+      if (!passed && level === 'level_1' && verdict.status !== 'failed' && !l1Enforce) {
         passed = true;
-        this.ctx.log('info', `L1 柔性审查：${(verdict.issues || []).length}条问题仅作建议，不驳回`, verifierId);
+        this.ctx.log('info', `L1 柔性审查：${(verdict.issues || []).length}条问题仅作建议，不驳回（enforce_reject=false）`, verifierId);
+      } else if (!passed && level === 'level_1' && verdict.status !== 'failed' && l1Enforce) {
+        this.ctx.log('warn', `L1 审查驳回：${(verdict.issues || []).length}条问题`, verifierId);
       }
 
       this.ctx.task.verification = {

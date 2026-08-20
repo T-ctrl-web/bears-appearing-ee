@@ -5,6 +5,9 @@ config/lark-config.json
 # 会话记忆（临时数据）
 memory/session/
 
+# 状态持久化文件（运行时生成）
+data/state-backup.json
+
 # 系统文件
 *.tmp
 *.bak

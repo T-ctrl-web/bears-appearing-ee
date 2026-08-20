@@ -1,3 +1,8 @@
+const fs = require('fs');
+const path = require('path');
+
+const PERSIST_PATH = path.join(__dirname, '..', 'data', 'state-backup.json');
+
 const ROLES = [
   { id: 'xiongda', name: '熊大', role: '总裁', tier: 'leader', avatar: '🐻' },
   { id: 'guangtouqiang', name: '光头强', role: '架构', tier: 'worker', avatar: '👷' },
@@ -26,13 +31,40 @@ const STATES = {
 const state = {
   roles: ROLES.map(r => ({ ...r, status: 'IDLE', task: '', startTime: null, endTime: null })),
   task: null,
+  taskQueue: [],
   waves: [],
   currentWave: -1,
   logs: [],
   startedAt: null,
+  tokenUsage: { total: 0, byRole: {}, calls: 0 },
 };
 
 const listeners = new Set();
+
+function persist() {
+  try {
+    const dir = path.dirname(PERSIST_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(PERSIST_PATH, JSON.stringify(state, null, 2));
+  } catch (e) {
+    console.error('[state] persist failed:', e.message);
+  }
+}
+
+function loadPersisted() {
+  try {
+    if (!fs.existsSync(PERSIST_PATH)) return;
+    const saved = JSON.parse(fs.readFileSync(PERSIST_PATH, 'utf-8'));
+    if (saved && typeof saved === 'object') {
+      Object.assign(state, saved);
+      console.log('[state] Restored from', PERSIST_PATH);
+    }
+  } catch (e) {
+    console.error('[state] loadPersisted failed:', e.message);
+  }
+}
+
+loadPersisted();
 
 function getState() {
   return JSON.parse(JSON.stringify(state));
@@ -51,6 +83,7 @@ function notify() {
   for (const fn of listeners) {
     try { fn(snapshot); } catch {}
   }
+  persist();
 }
 
 function subscribe(fn) {
@@ -70,6 +103,28 @@ function addLog(level, message, roleId) {
   if (state.logs.length > 200) state.logs.shift();
   notify();
   return entry;
+}
+
+function enqueueTask(taskInfo, priority = 'P1') {
+  const entry = {
+    ...taskInfo,
+    priority,
+    status: 'queued',
+    queuedAt: new Date().toISOString(),
+  };
+  const priorityOrder = { P0: 0, P1: 1, P2: 2 };
+  state.taskQueue.push(entry);
+  state.taskQueue.sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
+  addLog('info', `任务入队（${priority}）：${taskInfo.title || '未命名任务'}`);
+  notify();
+  return entry;
+}
+
+function dequeueTask() {
+  if (state.taskQueue.length === 0) return null;
+  const next = state.taskQueue.shift();
+  notify();
+  return next;
 }
 
 function resetTask() {
@@ -129,6 +184,17 @@ function completeTask(result) {
   notify();
 }
 
+function addTokenUsage(roleId, tokens) {
+  state.tokenUsage.total += tokens;
+  state.tokenUsage.calls += 1;
+  state.tokenUsage.byRole[roleId] = (state.tokenUsage.byRole[roleId] || 0) + tokens;
+  notify();
+}
+
+function getTokenUsage() {
+  return JSON.parse(JSON.stringify(state.tokenUsage));
+}
+
 module.exports = {
   ROLES,
   STATES,
@@ -142,4 +208,8 @@ module.exports = {
   addWave,
   setWaveStatus,
   completeTask,
+  enqueueTask,
+  dequeueTask,
+  addTokenUsage,
+  getTokenUsage,
 };
