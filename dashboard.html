@@ -562,10 +562,9 @@ body {
 
 .bear {
   position: absolute;
-  width: 72px; margin-left: -36px; margin-top: -92px;
+  width: 66px; margin-left: -33px; margin-top: -92px;
   transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95), opacity .5s;
   z-index: 10; cursor: pointer; text-align: center; user-select: none;
-  mix-blend-mode: darken;
 }
 
 /* 聚焦模式：任务执行期间，空闲角色降透明度，突出干活的人 */
@@ -573,29 +572,45 @@ body {
 .bear.dimmed:hover { opacity: 1; }
 
 /* 精美立绘小人：AI 全身立绘，白底 multiply 融入明亮场景 */
-.bear-body { position: relative; transition: transform .25s; }
+.bear-body { position: relative; transition: transform .25s; animation: idle-breath 3.4s ease-in-out infinite; }
+.bear.walking .bear-body { animation: walk-cycle 0.4s infinite ease-in-out; }
+.bear.executing .bear-body { animation: work-cycle 0.5s infinite ease-in-out; }
 .bear:hover .bear-body { transform: scale(1.1); }
-
-/* 精灵图集帧动画（替代旧的 transform 动画） */
-.bear-sprite-sheet {
-  width: 68px; height: 68px; margin: 2px auto;
-  background-size: 272px 272px;
-  background-repeat: no-repeat;
-  overflow: hidden;
-  border-radius: 4px;
-  animation: sprite-idle 1.2s steps(4) infinite;
+@keyframes idle-breath { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1.5px) scaleY(1.02); } }
+@keyframes walk-cycle {
+  0%   { transform: translateY(0) rotate(-3deg) scaleY(1); }
+  25%  { transform: translateY(-6px) rotate(0deg) scaleY(0.97); }
+  50%  { transform: translateY(0) rotate(3deg) scaleY(1); }
+  75%  { transform: translateY(-6px) rotate(0deg) scaleY(0.97); }
+  100% { transform: translateY(0) rotate(-3deg) scaleY(1); }
 }
-@keyframes sprite-idle { from { background-position: 0 0; } to { background-position: -272px 0; } }
-@keyframes sprite-walk-right { from { background-position: 0 -68px; } to { background-position: -272px -68px; } }
-@keyframes sprite-walk-left { from { background-position: 0 -136px; } to { background-position: -272px -136px; } }
-@keyframes sprite-working { from { background-position: 0 -204px; } to { background-position: -272px -204px; } }
-.bear.walking .bear-sprite-sheet { animation: sprite-walk-right 0.48s steps(4) infinite; }
-.bear.walking.left .bear-sprite-sheet { animation: sprite-walk-left 0.48s steps(4) infinite; }
-.bear.executing .bear-sprite-sheet { animation: sprite-working 0.7s steps(4) infinite; }
-
-/* 走路时影子缩小跳动 */
+@keyframes work-cycle {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); }
+  30%  { transform: translateY(-1px) rotate(-1deg) scale(1.01); }
+  60%  { transform: translateY(0) rotate(1deg) scale(1); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
 .bear.walking::after { animation: shadow-bounce 0.4s infinite ease-in-out; }
 @keyframes shadow-bounce { 0%,100% { transform: translateX(-50%) scale(1); opacity:0.28; } 50% { transform: translateX(-50%) scale(0.72); opacity:0.18; } }
+
+/* 角色头像（白底 multiply 融入场景） */
+.bear .bear-img {
+  height: 78px; width: auto;
+  display: block; margin: 0 auto;
+  mix-blend-mode: multiply;
+  filter: drop-shadow(0 1px 1px rgba(80,60,30,0.12));
+}
+
+/* 活动指示器：角色头顶显示当前活动 */
+.bear-activity {
+  position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+  font-size: 16px; line-height: 1; z-index: 14;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+  pointer-events: none; opacity: 0; transition: opacity .4s;
+  animation: activity-float 2s ease-in-out infinite;
+}
+.bear.has-activity .bear-activity { opacity: 1; }
+@keyframes activity-float { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-3px); } }
 
 /* 影子（浅色场景柔和版） */
 .bear::after {
@@ -616,14 +631,15 @@ body {
 }
 
 .bear .bear-name { font-size: 10px; color: #8a8070; margin-top: 2px; white-space: nowrap; transition: color .3s; font-weight: 500; }
-.bear.executing .bear-sprite-sheet { filter: drop-shadow(0 0 7px rgba(46,184,138,0.75)); }
+.bear.executing .bear-img { filter: drop-shadow(0 0 7px rgba(46,184,138,0.75)); }
 .bear.executing .bear-name { color: #1f9d6f; }
-.bear.waiting .bear-sprite-sheet { filter: drop-shadow(0 0 6px rgba(230,150,50,0.7)); }
+.bear.waiting .bear-img { filter: drop-shadow(0 0 6px rgba(230,150,50,0.7)); }
 .bear.waiting .bear-name { color: #c07820; }
-.bear.done .bear-sprite-sheet { filter: drop-shadow(0 0 6px rgba(60,180,110,0.6)); }
+.bear.done .bear-img { filter: drop-shadow(0 0 6px rgba(60,180,110,0.6)); }
 .bear.done .bear-name { color: #2f9e63; }
-.bear.failed .bear-sprite-sheet { filter: drop-shadow(0 0 7px rgba(220,80,80,0.75)); }
+.bear.failed .bear-img { filter: drop-shadow(0 0 7px rgba(220,80,80,0.75)); }
 .bear.failed .bear-name { color: #cc4444; }
+.bear.walking.left .bear-body { transform: scaleX(-1); }
 
 .bubble {
   position: absolute; bottom: calc(100% + 6px); left: 50%;
@@ -1106,23 +1122,25 @@ const OfficeScene = (() => {
     // 状态徽章
     const badge = document.createElement('div');
     badge.className = 'bear-badge'; badge.textContent = '💤';
-    // 精灵图集帧动画小人（AI 生成 4×4 精灵图集，steps(4) 逐帧播放）
+    // 头像小人 + 活动指示器
     const body = document.createElement('div');
     body.className = 'bear-body';
-    const sprite = document.createElement('div');
-    sprite.className = 'bear-sprite-sheet';
-    sprite.style.backgroundImage = `url("${role.sprite || role.img}")`;
-    body.appendChild(sprite);
+    const img = document.createElement('img');
+    img.className = 'bear-img';
+    img.src = role.img; img.alt = role.name; img.loading = 'lazy';
+    body.appendChild(img);
+    const activity = document.createElement('div');
+    activity.className = 'bear-activity'; activity.textContent = '';
     // 名牌
     const name = document.createElement('div');
     name.className = 'bear-name'; name.textContent = role.name;
-    el.appendChild(bubble); el.appendChild(badge); el.appendChild(body); el.appendChild(name);
+    el.appendChild(bubble); el.appendChild(badge); el.appendChild(activity); el.appendChild(body); el.appendChild(name);
     el.addEventListener('click', (e) => {
-      e.stopPropagation(); // 不触发场景召唤
+      e.stopPropagation();
       showDetail(role, roleStates[role.id] || { status: 'idle', task: '' });
     });
     document.getElementById('officeStage').appendChild(el);
-    return { el, bubble, badge, role, pos: null, status: 'idle', bubbleTimer: null, walkTimer: null, doneTimer: null, greetCooldown: {} };
+    return { el, bubble, badge, activity, role, pos: null, status: 'idle', bubbleTimer: null, walkTimer: null, doneTimer: null, greetCooldown: {}, activityTimer: null };
   }
 
   // 生成办公桌（桌面+显示器），熊站在桌后似落座
@@ -1308,6 +1326,25 @@ const OfficeScene = (() => {
     return bear.idleSpot;
   }
 
+  // 活动系统：休息区随机活动 + 工作区岗位活动
+  const REST_ACTS = ['📺','💬','☕','🎮','😴','📖','🎧','🧩'];
+  const WORK_ACTS = { executing: '⌨️', waiting: '⏳', done: '📦', failed: '🔧' };
+  function setActivity(bear, emoji) {
+    bear.activity.textContent = emoji || '';
+    bear.el.classList.toggle('has-activity', !!emoji);
+  }
+  function startRestActivity(bear) {
+    setActivity(bear, REST_ACTS[Math.floor(Math.random() * REST_ACTS.length)]);
+    clearTimeout(bear.activityTimer);
+    bear.activityTimer = setTimeout(() => {
+      if (bear.status === 'idle') startRestActivity(bear);
+    }, 5000 + Math.random() * 6000);
+  }
+  function stopActivity(bear) {
+    clearTimeout(bear.activityTimer);
+    setActivity(bear, '');
+  }
+
   // 状态驱动走位：idle→休息区 / executing→各自岗位 / done→交付区后回休息区 / failed→修复区
   function updateRole(roleId, status, task) {
     const bear = bears[roleId];
@@ -1316,6 +1353,10 @@ const OfficeScene = (() => {
     const cls = STATUS_CLASS[status] || 'idle';
     Object.values(STATUS_CLASS).forEach(c => bear.el.classList.toggle(c, c === cls));
     bear.badge.textContent = STATUS_BADGE[status] || '';
+    // 活动指示器
+    if (status === 'idle') { startRestActivity(bear); }
+    else if (WORK_ACTS[status]) { stopActivity(bear); setActivity(bear, WORK_ACTS[status]); }
+    else { stopActivity(bear); }
     if (task && status === 'executing') speak(roleId, task, 3000);
     clearTimeout(bear.doneTimer);
     if (status === 'done') {
@@ -1324,6 +1365,7 @@ const OfficeScene = (() => {
         if (bear.status === 'done') {
           place(bear, bear.idleSpot, { jitter: true });
           bear.status = 'idle';
+          startRestActivity(bear);
           refreshFocus();
         }
       }, 3200);
@@ -1344,6 +1386,7 @@ const OfficeScene = (() => {
       clearTimeout(bear.bubbleTimer); clearTimeout(bear.walkTimer); clearTimeout(bear.doneTimer);
       bear.bubble.classList.remove('show');
       place(bear, bear.idleSpot);
+      startRestActivity(bear);
     }
   }
 
