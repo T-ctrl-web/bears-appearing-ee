@@ -577,20 +577,22 @@ body {
 
 /* 精灵图集帧动画（替代旧的 transform 动画） */
 .bear-sprite-sheet {
-  width: 72px; height: 72px; margin: 0 auto;
-  background-size: 288px 288px;
+  width: 68px; height: 68px; margin: 2px auto;
+  background-size: 272px 272px;
   background-repeat: no-repeat;
-  mix-blend-mode: multiply;
+  mix-blend-mode: darken;
+  overflow: hidden;
+  border-radius: 4px;
   filter: drop-shadow(0 1px 1px rgba(80,60,30,0.12));
-  animation: sprite-idle 0.8s steps(4) infinite;
+  animation: sprite-idle 1.2s steps(4) infinite;
 }
-@keyframes sprite-idle { from { background-position: 0 0; } to { background-position: -288px 0; } }
-@keyframes sprite-walk-right { from { background-position: 0 -72px; } to { background-position: -288px -72px; } }
-@keyframes sprite-walk-left { from { background-position: 0 -144px; } to { background-position: -288px -144px; } }
-@keyframes sprite-working { from { background-position: 0 -216px; } to { background-position: -288px -216px; } }
-.bear.walking .bear-sprite-sheet { animation: sprite-walk-right 0.32s steps(4) infinite; }
-.bear.walking.left .bear-sprite-sheet { animation: sprite-walk-left 0.32s steps(4) infinite; }
-.bear.executing .bear-sprite-sheet { animation: sprite-working 0.5s steps(4) infinite; }
+@keyframes sprite-idle { from { background-position: 0 0; } to { background-position: -272px 0; } }
+@keyframes sprite-walk-right { from { background-position: 0 -68px; } to { background-position: -272px -68px; } }
+@keyframes sprite-walk-left { from { background-position: 0 -136px; } to { background-position: -272px -136px; } }
+@keyframes sprite-working { from { background-position: 0 -204px; } to { background-position: -272px -204px; } }
+.bear.walking .bear-sprite-sheet { animation: sprite-walk-right 0.48s steps(4) infinite; }
+.bear.walking.left .bear-sprite-sheet { animation: sprite-walk-left 0.48s steps(4) infinite; }
+.bear.executing .bear-sprite-sheet { animation: sprite-working 0.7s steps(4) infinite; }
 
 /* 走路时影子缩小跳动 */
 .bear.walking::after { animation: shadow-bounce 0.4s infinite ease-in-out; }
