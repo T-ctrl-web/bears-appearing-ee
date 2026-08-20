@@ -19,8 +19,8 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  ToolExecutor, WORKER_TOOLS, VERIFIER_TOOLS,
-  WORKSPACE_RULES_WORKER, WORKSPACE_RULES_VERIFIER, MAX_TOOL_ROUNDS,
+  ToolExecutor, buildWorkerTools, buildVerifierTools,
+  workspaceRulesWorker, workspaceRulesVerifier, MAX_TOOL_ROUNDS,
 } = require('./tool-executor');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -53,6 +53,10 @@ function loadBaseConfig() {
   const user = loadUserSettings();
   const apiKey = String(user.api_key || process.env.DEEPSEEK_API_KEY || dsConfig.api_key || '');
   const configured = !PLACEHOLDER_KEYS.has(apiKey.trim());
+  // P3 命令执行开关：用户设置 > 环境变量 > 配置文件；默认关闭
+  const allowCommands = user.allow_commands === true
+    || ['1', 'true'].includes(String(process.env.MAVIS_ALLOW_COMMANDS || '').toLowerCase())
+    || dsConfig.tools?.allow_commands === true;
 
   return {
     engine: configured ? 'deepseek' : 'mock',
@@ -64,6 +68,7 @@ function loadBaseConfig() {
     maxTokens: dsConfig.max_tokens || 8192,
     temperature: user.temperature ?? dsConfig.temperature ?? 0.7,
     timeoutMs: dsConfig.timeout_ms || 120000,
+    allowCommands,
   };
 }
 
@@ -226,6 +231,7 @@ class HarnessAdapter {
     this.config.keySource = fresh.keySource;
     this.config.model = fresh.model;
     this.config.temperature = fresh.temperature;
+    this.config.allowCommands = fresh.allowCommands;
     return this;
   }
 
@@ -367,7 +373,7 @@ class HarnessAdapter {
       for (const call of calls) {
         toolCallCount++;
         const fn = call.function || {};
-        const exec = executor.executeToolCall(fn.name, fn.arguments);
+        const exec = await executor.executeToolCall(fn.name, fn.arguments);
         const reply = exec.ok
           ? String(exec.result).slice(0, 8000) // 回填上限，防止上下文爆炸
           : `ERROR: ${exec.error}`;
@@ -405,10 +411,11 @@ class HarnessAdapter {
 
     // 带工作区：Agent Loop（write_file/read_file/list_dir），产出为真实文件
     if (workspace) {
-      const executor = new ToolExecutor(workspace);
+      const allowCommands = this.config.allowCommands === true;
+      const executor = new ToolExecutor(workspace, { allowCommands });
       const before = new Set(executor.isEmpty() ? [] : executor.listDir('.'));
-      const sys = buildSystemPrompt(roleInfo) + '\n\n' + WORKSPACE_RULES_WORKER;
-      const r = await this._chatWithTools(sys, buildUserPrompt({ roleInfo, task, context }), roleId, WORKER_TOOLS, executor);
+      const sys = buildSystemPrompt(roleInfo) + '\n\n' + workspaceRulesWorker({ allowCommands });
+      const r = await this._chatWithTools(sys, buildUserPrompt({ roleInfo, task, context }), roleId, buildWorkerTools({ allowCommands }), executor);
       if (!r.ok) return { ...base, status: 'failed', output: null, error: r.error, duration_ms: r.duration_ms };
       const after = executor.listDir('.');
       const written = after.filter(p => !before.has(p));
@@ -458,15 +465,16 @@ class HarnessAdapter {
 
     // 带工作区：Verifier Agent Loop（只读工具），基于真实文件审查
     if (workspace) {
-      const executor = new ToolExecutor(workspace);
+      const allowCommands = this.config.allowCommands === true;
+      const executor = new ToolExecutor(workspace, { allowCommands });
       let treeNote = '（工作区为空）';
       try {
         const files = executor.listDir('.');
         if (files.length) treeNote = files.map(p => `- ${p}`).join('\n');
       } catch { /* 保持默认 */ }
-      const sys = buildVerifierSystemPrompt(roleInfo, levelRules) + '\n\n' + WORKSPACE_RULES_VERIFIER;
+      const sys = buildVerifierSystemPrompt(roleInfo, levelRules) + '\n\n' + workspaceRulesVerifier({ allowCommands });
       const user = `## 工作区文件清单\n${treeNote}\n\n` + buildVerifierUserPrompt({ task, outputs, iteration, maxIterations });
-      const r = await this._chatWithTools(sys, user, verifierId, VERIFIER_TOOLS, executor);
+      const r = await this._chatWithTools(sys, user, verifierId, buildVerifierTools({ allowCommands }), executor);
       if (!r.ok) {
         return { ...base, status: 'failed', passed: null, issues: [], verdict: '', raw: null, parsed: false, error: r.error, duration_ms: r.duration_ms };
       }

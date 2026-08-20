@@ -121,9 +121,10 @@ const server = http.createServer(async (req, res) => {
     const next = {};
     if (typeof body.api_key === 'string') {
       next.api_key = String(body.api_key).trim().replace(/^sk-/, '') ? String(body.api_key).trim() : '';
+      next.api_key = next.api_key || '';
     }
     if (typeof body.model === 'string' && body.model.trim()) next.model = String(body.model).trim();
-    if (next.api_key !== undefined) next.api_key = next.api_key || '';
+    if (typeof body.allow_commands === 'boolean') next.allow_commands = body.allow_commands;
     settings.saveUserSettings(next);
     harness.applyUserSettings();
     sendJson(res, 200, { ok: true, harness: harness.engineStatus });

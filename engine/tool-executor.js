@@ -10,16 +10,23 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 
 const MAX_FILE_BYTES = 1024 * 1024; // 1MB
 const MAX_LIST_ENTRIES = 500;
+const DEFAULT_CMD_TIMEOUT_MS = 30000;
+const MAX_CMD_OUTPUT = 8000;
+// node 标志位黑名单：强制"文件式"执行，保证命令内容可审计（禁止 -e/--eval 内联代码）
+const NODE_FLAG_BLOCKLIST = /^(-e|--eval|-p|--print|--input-type|--require|--import)$/i;
 
 class ToolExecutor {
   /**
    * @param {string} workspaceDir 工作区根目录（绝对路径）
+   * @param {object} options - { allowCommands?: boolean }（P3 命令执行开关，默认关）
    */
-  constructor(workspaceDir) {
+  constructor(workspaceDir, options = {}) {
     this.root = path.resolve(workspaceDir);
+    this.allowCommands = options.allowCommands === true;
   }
 
   /** 路径禁闭校验：返回工作区内的绝对路径；越界抛错 */
@@ -74,10 +81,10 @@ class ToolExecutor {
   }
 
   /**
-   * 统一执行一次工具调用（来自 LLM 的 tool_calls）
-   * @returns {{ok: boolean, result?: string, error?: string}}
+   * 统一执行一次工具调用（来自 LLM 的 tool_calls；run_command 为异步）
+   * @returns {Promise<{ok: boolean, result?: string, error?: string}>}
    */
-  executeToolCall(name, args) {
+  async executeToolCall(name, args) {
     try {
       const a = (typeof args === 'string' ? JSON.parse(args || '{}') : args) || {};
       switch (String(name)) {
@@ -87,6 +94,11 @@ class ToolExecutor {
           return { ok: true, result: this.readFile(a.path) };
         case 'list_dir':
           return { ok: true, result: JSON.stringify(this.listDir(a.path || '.')) };
+        case 'run_command': {
+          if (!this.allowCommands) return { ok: false, error: '命令执行未启用（allow_commands=false）' };
+          const r = await this.runCommand(a.command, { timeout_ms: a.timeout_ms });
+          return { ok: true, result: `exitCode=${r.exitCode}${r.timedOut ? ' (timedOut)' : ''}\n${r.output}` };
+        }
         default:
           return { ok: false, error: `未知工具：${name}` };
       }
@@ -98,6 +110,50 @@ class ToolExecutor {
   /** 工作区是否为空（无任何文件） */
   isEmpty() {
     try { return this.listDir('.').length === 0; } catch { return true; }
+  }
+
+  /**
+   * P3 命令执行（白名单：仅 node，且只能跑工作区内脚本文件）。
+   * 安全约束：execFile 直跑（无 shell 注入面）/ 标志位黑名单强制文件式执行 /
+   * 路径参数必须落在工作区内 / 超时强杀 / 输出截断。
+   * 默认关闭：须显式 allowCommands（config/env/用户设置）才会暴露该工具。
+   */
+  runCommand(command, opts = {}) {
+    if (!this.allowCommands) throw new Error('命令执行未启用（allow_commands=false）');
+    const tokens = String(command || '').trim().split(/\s+/).filter(Boolean);
+    if (!tokens.length) throw new Error('命令为空');
+    if (tokens[0] !== 'node') throw new Error(`命令不在白名单（仅允许 node）：${tokens[0]}`);
+    const args = tokens.slice(1);
+    for (const a of args) {
+      if (NODE_FLAG_BLOCKLIST.test(a)) throw new Error(`禁止 node 标志位 ${a}（强制文件式执行）`);
+      if (/[\\/]|\.(js|mjs|cjs|json)$/i.test(a)) {
+        // 形似路径的参数必须落在工作区内
+        this._resolve(a.replace(/^\.?\//, ''));
+      }
+    }
+    const timeoutMs = Math.min(Number(opts.timeout_ms) || DEFAULT_CMD_TIMEOUT_MS, DEFAULT_CMD_TIMEOUT_MS);
+    return new Promise((resolve) => {
+      execFile('node', args, {
+        cwd: this.root,
+        timeout: timeoutMs,
+        maxBuffer: 1024 * 1024,
+        windowsHide: true,
+      }, (err, stdout, stderr) => {
+        const out = String(stdout || '');
+        const errOut = String(stderr || '');
+        const clipped = (out + (errOut ? `\n[stderr]\n${errOut}` : '')).slice(0, MAX_CMD_OUTPUT);
+        if (err) {
+          const killed = err.killed || err.signal === 'SIGTERM';
+          resolve({
+            exitCode: err.code ?? -1,
+            timedOut: !!killed,
+            output: clipped + (killed ? `\n[超时 ${timeoutMs}ms 强制终止]` : `\n[执行错误: ${err.message}]`),
+          });
+          return;
+        }
+        resolve({ exitCode: 0, timedOut: false, output: clipped });
+      });
+    });
   }
 }
 
@@ -143,26 +199,68 @@ const WORKER_TOOLS = [
   },
 ];
 
-/** Verifier 只读工具（客观验证：看真实文件而非自述文本） */
+/** P3 命令执行工具定义（仅 allow_commands=true 时暴露） */
+const COMMAND_TOOL = {
+  type: 'function',
+  function: {
+    name: 'run_command',
+    description: '在工作区内运行 node 脚本（仅允许 node，且脚本必须在工作区内）。用于运行测试/自检脚本，输出会回传给你。',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: '如 "node test.js"（禁止 -e 内联，先写文件再跑）' },
+        timeout_ms: { type: 'number', description: '超时毫秒（默认 30000，上限 30000）' },
+      },
+      required: ['command'],
+    },
+  },
+};
+
+/** Verifier 只读工具（客观验证：看真实文件而非自述文本）；启用命令时加 run_command */
 const VERIFIER_TOOLS = WORKER_TOOLS.filter(t => t.function.name !== 'write_file');
 
-/** 工具使用规范（注入 system prompt） */
-const WORKSPACE_RULES_WORKER = `## 工作区与工具使用（重要）
+/** 按开关构建工具集 */
+function buildWorkerTools({ allowCommands } = {}) {
+  return allowCommands ? [...WORKER_TOOLS, COMMAND_TOOL] : [...WORKER_TOOLS];
+}
+function buildVerifierTools({ allowCommands } = {}) {
+  return allowCommands ? [...VERIFIER_TOOLS, COMMAND_TOOL] : [...VERIFIER_TOOLS];
+}
+
+/** 工具使用规范（注入 system prompt，按开关动态生成） */
+function workspaceRulesWorker({ allowCommands } = {}) {
+  const cmd = allowCommands
+    ? `\n- 你还拥有 run_command：可运行工作区内的 node 脚本（如 node test.js）做自检/测试，输出会回传；禁止 -e 内联代码，先写文件再跑。`
+    : '';
+  return `## 工作区与工具使用（重要）
 - 本任务有真实工作区，你拥有 write_file / read_file / list_dir 三个工具。
 - 凡属"产出物"（代码、文档、配置、原型 HTML 等）必须用 write_file 写成真实文件，而不是只写在回复里。
 - 回复文本只用于说明你做了什么、设计要点与文件清单，不要在回复里整段粘贴文件内容。
-- 路径是工作区内相对路径，禁止绝对路径与 .. 逃逸。
+- 路径是工作区内相对路径，禁止绝对路径与 .. 逃逸。${cmd}
 - 最多 8 轮工具调用，先用 list_dir 看清现状再动手，最后给出简短总结。`;
+}
 
-const WORKSPACE_RULES_VERIFIER = `## 工作区与工具使用（重要）
+function workspaceRulesVerifier({ allowCommands } = {}) {
+  const cmd = allowCommands ? `\n- 你还拥有 run_command：可真实运行工作区内的 node 测试脚本，用实际运行结果作为客观证据。` : '';
+  return `## 工作区与工具使用（重要）
 - 你拥有只读工具 read_file / list_dir，可直接查看工作区中的真实产出文件。
 - 审查必须基于真实文件内容，而不是仅凭 Worker 的自述文本。
-- 需要引用证据时，请给出具体文件路径与问题位置。`;
+- 需要引用证据时，请给出具体文件路径与问题位置。${cmd}`;
+}
+
+// 兼容旧导出（测试引用）
+const WORKSPACE_RULES_WORKER = workspaceRulesWorker();
+const WORKSPACE_RULES_VERIFIER = workspaceRulesVerifier();
 
 module.exports = {
   ToolExecutor,
   WORKER_TOOLS,
   VERIFIER_TOOLS,
+  COMMAND_TOOL,
+  buildWorkerTools,
+  buildVerifierTools,
+  workspaceRulesWorker,
+  workspaceRulesVerifier,
   WORKSPACE_RULES_WORKER,
   WORKSPACE_RULES_VERIFIER,
   MAX_TOOL_ROUNDS: 8,
