@@ -1680,8 +1680,8 @@ updateProgress(0, 0);
       <div style="display:flex;gap:8px;">
         <input id="settingsWsRoot" type="text" placeholder="例如 D:\mavis-workspaces" autocomplete="off"
           style="flex:1;background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:13px;" />
-        <button id="settingsWsOpen" title="在资源管理器中打开当前工作区目录"
-          style="background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;white-space:nowrap;">📁 打开</button>
+        <button id="settingsWsBrowse" title="弹出系统对话框选择一个文件夹作为工作区目录"
+          style="background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;white-space:nowrap;">📁 选择文件夹</button>
       </div>
     </div>
     <div id="settingsStatus" style="font-size:12px;color:var(--muted);margin-bottom:12px;min-height:16px;"></div>
@@ -1753,8 +1753,26 @@ updateProgress(0, 0);
       else statusEl.textContent = d.error || '保存失败';
     } catch (e) { statusEl.textContent = '保存失败'; }
   }
-  document.getElementById('settingsWsOpen').addEventListener('click', async () => {
-    try { await fetch('/api/workspace/open', { method: 'POST' }); } catch (e) { statusEl.textContent = '打开失败'; }
+  document.getElementById('settingsWsBrowse').addEventListener('click', async () => {
+    try {
+      if (window.mavis && window.mavis.selectFolder) {
+        // 桌面版：调用 Electron 原生目录选择对话框
+        const dir = await window.mavis.selectFolder();
+        if (dir) document.getElementById('settingsWsRoot').value = dir;
+      } else if (window.showDirectoryPicker) {
+        // 浏览器（Chrome）：原生目录选择器
+        try {
+          const h = await window.showDirectoryPicker();
+          const hd = await h.getDirectoryHandle ? h.getDirectoryHandle('/') : null;
+          if (h && h.name && hd === null) {
+            // 浏览器沙箱拿不到绝对路径，提示手动填写
+            statusEl.textContent = '浏览器下无法获取绝对路径，请手动填写工作区目录，或使用桌面版一键选择';
+          }
+        } catch (e) { if (e.name !== 'AbortError') statusEl.textContent = '选择取消'; }
+      } else {
+        statusEl.textContent = '此环境不支持目录选择，请手动填写绝对路径，或使用桌面版';
+      }
+    } catch (e) { statusEl.textContent = '选择失败'; }
   });
   document.getElementById('openSettings').addEventListener('click', open);
   document.getElementById('settingsClose').addEventListener('click', close);

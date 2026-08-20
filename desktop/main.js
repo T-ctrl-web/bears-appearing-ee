@@ -8,7 +8,7 @@
  *
  * 端口：固定用 3199（桌面应用专用），避免与开发态 3121 冲突。
  */
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -56,10 +56,26 @@ function createWindow() {
     height: 940,
     title: '熊出没集团 · 纸片人工作看板',
     autoHideMenuBar: true,
-    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
   });
   mainWindow.loadURL(`http://127.0.0.1:${PORT}/`);
 }
+
+// 原生“选择文件夹”对话框：渲染进程通过 window.mavis.selectFolder() 调用
+ipcMain.handle('select-folder', async () => {
+  const win = BrowserWindow.getFocusedWindow() || mainWindow;
+  const res = await dialog.showOpenDialog(win, {
+    title: '选择工作区目录',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths.length) return null;
+  return res.filePaths[0];
+});
 
 app.whenReady().then(() => {
   waitForServer(30, () => {
