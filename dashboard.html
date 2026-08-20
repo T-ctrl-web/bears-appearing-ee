@@ -1353,9 +1353,9 @@ const OfficeScene = (() => {
     });
     let deskIdx = 0, verifyIdx = 0, idleIdx = 0, fixIdx = 0;
     // 家具：工位桌×9（蓝屏）/ 验证桌×4（橙屏）/ 总裁桌（宽）/ 交付货架 / 修复工作台
-    DESKS.forEach(s => createDesk(s.x, s.y + 6));
-    VERIFY_SPOTS.forEach(s => createDesk(s.x, s.y + 6, { screen: '#8a5a20' }));
-    createDesk(CEO_DESK.x, CEO_DESK.y + 6, { wide: true, screen: '#4a6fa5' });
+    DESKS.forEach(s => createDesk(s.x, s.y));
+    VERIFY_SPOTS.forEach(s => createDesk(s.x, s.y, { screen: '#8a5a20' }));
+    createDesk(CEO_DESK.x, CEO_DESK.y, { wide: true, screen: '#4a6fa5' });
     createBigFurn(DELIVERY_SPOT.x + 8, DELIVERY_SPOT.y + 8, '📦');
     createBigFurn(50, 88, '🛠️');
     ROLES.forEach(role => {
