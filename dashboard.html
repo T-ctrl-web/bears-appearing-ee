@@ -523,31 +523,33 @@ body {
 /* 办公家具（JS 按点位生成）：桌+显示器，熊在桌后似落座 */
 .fdesk {
   position: absolute;
-  width: 38px; margin-left: -19px;
+  width: 44px; margin-left: -22px;
   z-index: 11; pointer-events: none;
 }
 .fdesk .desk-top {
-  height: 6px; border-radius: 3px;
-  background: linear-gradient(180deg, #7a6a52, #5d5040);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  height: 7px; border-radius: 3px;
+  background: linear-gradient(180deg, #8a7a62, #5d5040);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.35);
 }
 .fdesk .desk-legbar {
-  width: 5px; height: 9px; background: #4a4034;
+  width: 6px; height: 12px; background: #4a4034;
   margin: 0 auto; border-radius: 0 0 2px 2px;
 }
 .fdesk .monitor {
-  position: absolute; top: -16px; left: 50%;
+  position: absolute; top: -26px; left: 50%;
   transform: translateX(-50%);
-  width: 15px; height: 11px; border-radius: 2px;
+  width: 18px; height: 15px; border-radius: 2px;
   background: #39445c; border: 1px solid #55627f;
-  box-shadow: 0 0 6px rgba(108,142,239,0.25);
+  box-shadow: 0 0 8px rgba(108,142,239,0.3);
 }
 .fdesk .monitor::after {
-  content: ''; position: absolute; bottom: -4px; left: 50%;
+  content: ''; position: absolute; bottom: -5px; left: 50%;
   transform: translateX(-50%);
-  width: 6px; height: 4px; background: #39445c;
+  width: 7px; height: 5px; background: #39445c;
+  border-radius: 0 0 2px 2px;
 }
-.fdesk.wide { width: 56px; margin-left: -28px; }
+.fdesk.wide { width: 64px; margin-left: -32px; }
+.fdesk.wide .monitor { width: 24px; height: 18px; top: -30px; }
 
 /* 货架 / 工作台等大件 emoji 家具 */
 .bigfurn {
@@ -1258,7 +1260,7 @@ const OfficeScene = (() => {
     return bear.idleSpot;
   }
 
-  // 状态驱动走位：idle→休息区 / executing→各自岗位 / done→留在岗位 / failed→修复区
+  // 状态驱动走位：idle→休息区 / executing→各自岗位 / done→交付区后回休息区 / failed→修复区
   function updateRole(roleId, status, task) {
     const bear = bears[roleId];
     if (!bear) return;
@@ -1269,8 +1271,14 @@ const OfficeScene = (() => {
     if (task && status === 'executing') speak(roleId, task, 3000);
     clearTimeout(bear.doneTimer);
     if (status === 'done') {
-      // 完成后留在自己的工位，不回休息区
-      place(bear, bear.deskSpot);
+      place(bear, jitter(DELIVERY_SPOT, 6));
+      bear.doneTimer = setTimeout(() => {
+        if (bear.status === 'done') {
+          place(bear, bear.idleSpot, { jitter: true });
+          bear.status = 'idle';
+          refreshFocus();
+        }
+      }, 3200);
     } else {
       place(bear, targetFor(bear, status));
     }
@@ -1345,9 +1353,9 @@ const OfficeScene = (() => {
     });
     let deskIdx = 0, verifyIdx = 0, idleIdx = 0, fixIdx = 0;
     // 家具：工位桌×9（蓝屏）/ 验证桌×4（橙屏）/ 总裁桌（宽）/ 交付货架 / 修复工作台
-    DESKS.forEach(s => createDesk(s.x, s.y + 13));
-    VERIFY_SPOTS.forEach(s => createDesk(s.x, s.y + 13, { screen: '#8a5a20' }));
-    createDesk(CEO_DESK.x, CEO_DESK.y + 13, { wide: true, screen: '#4a6fa5' });
+    DESKS.forEach(s => createDesk(s.x, s.y + 6));
+    VERIFY_SPOTS.forEach(s => createDesk(s.x, s.y + 6, { screen: '#8a5a20' }));
+    createDesk(CEO_DESK.x, CEO_DESK.y + 6, { wide: true, screen: '#4a6fa5' });
     createBigFurn(DELIVERY_SPOT.x + 8, DELIVERY_SPOT.y + 8, '📦');
     createBigFurn(50, 88, '🛠️');
     ROLES.forEach(role => {
