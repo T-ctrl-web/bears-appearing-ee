@@ -5,83 +5,68 @@ const ROOT = __dirname;
 const DASH = path.join(ROOT, 'dashboard.html');
 const OUT = path.join(ROOT, 'dashboard-standalone.html');
 
-const CHAR_DIR = path.join(ROOT, 'assets', 'characters');
-
-const SPRITE_MAP = {
-  xiongda: 'char-xiongda-action', guangtouqiang: 'char-guangtouqiang-action', xionger: 'char-xionger',
-  luobotou: 'char-luobotou', bengbeng: 'char-bengbeng', cuihua: 'char-cuihua',
-  tutu: 'char-tutu', tuotuo: 'char-tuotuo', maomao: 'char-maomao', feibo: 'char-feibo',
-  jiji: 'char-jiji', laoe: 'char-laoe', xiaoli: 'char-xiaoli', tiezhang: 'char-tiezhang',
-};
-
-const IMG_MAP = {
-  xiongda: 'char-01-xiongda', guangtouqiang: 'char-02-guangtouqiang', xionger: 'char-03-xionger',
-  luobotou: 'char-04-luobotou', bengbeng: 'char-05-bengbeng', cuihua: 'char-06-cuihua',
-  tutu: 'char-07-tutu', tuotuo: 'char-08-tuotuo', maomao: 'char-09-maomao', feibo: 'char-10-feibo',
-  jiji: 'char-11-jjgw', laoe: 'char-12-laoe', xiaoli: 'char-13-xiaoli', tiezhang: 'char-14-tiezhang',
-};
+const IDS = [
+  'xiongda', 'guangtouqiang', 'xionger', 'luobotou', 'bengbeng', 'cuihua',
+  'tutu', 'tuotuo', 'maomao', 'feibo', 'jiji', 'laoe', 'xiaoli', 'tiezhang',
+];
 
 let html = fs.readFileSync(DASH, 'utf-8');
 
-const spritePaths = Object.entries(SPRITE_MAP).map(([id, name]) => ({
-  id, path: `assets/characters/${name}.jpg`
-}));
-
-const imgPaths = Object.entries(IMG_MAP).map(([id, name]) => ({
-  id, path: `requirements-spec/assets/char-${name.match(/(\d+)/)[0]}-${id}.jpg`
-}));
-
-function toDataURI(filePath) {
-  try {
-    const abs = path.join(ROOT, filePath);
-    if (!fs.existsSync(abs)) return null;
-    const buf = fs.readFileSync(abs);
-    return `data:image/jpeg;base64,${buf.toString('base64')}`;
-  } catch (e) {
-    return null;
-  }
-}
-
-console.log('Embedding character images as base64...');
 let embedded = 0, skipped = 0;
 const totalSize = { before: 0, after: 0 };
+const dataMap = {};
 
-for (const { id, path: relPath } of spritePaths) {
-  const dataURI = toDataURI(relPath);
-  if (dataURI) {
-    totalSize.before += fs.statSync(path.join(ROOT, relPath)).size;
-    totalSize.after += dataURI.length;
-    html = html.split(`assets/characters/${SPRITE_MAP[id]}.jpg`).join(dataURI);
-    embedded++;
-  } else {
-    console.log(`  SKIP sprite: ${id} (${relPath})`);
+for (const id of IDS) {
+  const relPath = 'assets/characters/3d-' + id + '.jpg';
+  const abs = path.join(ROOT, relPath);
+  if (!fs.existsSync(abs)) {
+    console.log('  SKIP: ' + id);
     skipped++;
+    continue;
   }
+  const buf = fs.readFileSync(abs);
+  const dataURI = 'data:image/jpeg;base64,' + buf.toString('base64');
+  totalSize.before += buf.length;
+  totalSize.after += dataURI.length;
+  dataMap[id] = dataURI;
+  embedded++;
 }
 
-for (const { id, path: relPath } of imgPaths) {
-  const dataURI = toDataURI(relPath);
-  if (dataURI) {
-    html = html.split(relPath).join(dataURI);
-  } else {
-    console.log(`  SKIP img: ${id} (${relPath})`);
+const entries = Object.entries(dataMap).map(function(pair) {
+  return "  '" + pair[0] + "':'" + pair[1] + "'";
+}).join(',\n');
+
+var replacement = "const _3D_IMG = {\n" + entries + "\n};\nROLES.forEach(function(r) { r.sprite = _3D_IMG[r.id] || ('assets/characters/3d-' + r.id + '.jpg'); r.img = r.sprite; });";
+
+var oldLine = 'ROLES.forEach(r => { r.sprite = `assets/characters/3d-${r.id}.jpg`; r.img = r.sprite; });';
+
+if (html.indexOf(oldLine) !== -1) {
+  html = html.replace(oldLine, replacement);
+  console.log('Template literal replaced successfully.');
+} else {
+  console.log('ERROR: Could not find the target line.');
+  var lines = html.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].indexOf('3d-') !== -1 && lines[i].indexOf('r.id') !== -1) {
+      console.log('  Line ' + (i+1) + ': ' + lines[i].trim());
+    }
   }
 }
 
 html = html.replace(
   /evtSource = new EventSource\(`\$\{location\.protocol\}\/\/\$\{location\.host\}\/events`\);/,
-  'status.textContent = "🔴 离线模式（无服务器）"; status.className = "ws-status disconnected"; return;'
+  'status.textContent = "离线模式"; status.className = "ws-status disconnected"; return;'
 );
 
 html = html.replace(
-  '<title>熊出没集团 — 纸片人工作看板</title>',
-  '<title>熊出没集团 — 纸片人工作看板（离线版）</title>'
+  '<title>熊出没集团 — 紙片人工作看板</title>',
+  '<title>熊出没集团 — 3D 紙片人工作看板（离线版）</title>'
 );
 
 fs.writeFileSync(OUT, html, 'utf-8');
-const outSize = fs.statSync(OUT).size;
+var outSize = fs.statSync(OUT).size;
 
-console.log(`\nDone! ${embedded} images embedded, ${skipped} skipped.`);
-console.log(`Image data: ${(totalSize.before / 1024 / 1024).toFixed(2)}MB → ${(totalSize.after / 1024 / 1024).toFixed(2)}MB (base64)`);
-console.log(`Output: ${OUT}`);
-console.log(`File size: ${(outSize / 1024 / 1024).toFixed(2)}MB`);
+console.log('\nDone! ' + embedded + ' images embedded, ' + skipped + ' skipped.');
+console.log('Image data: ' + (totalSize.before / 1024 / 1024).toFixed(2) + 'MB -> ' + (totalSize.after / 1024 / 1024).toFixed(2) + 'MB (base64)');
+console.log('Output: ' + OUT);
+console.log('File size: ' + (outSize / 1024 / 1024).toFixed(2) + 'MB');

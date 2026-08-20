@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D 角色全集预览 — 熊出没集团</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1f2e; color: #e8eaf0; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; min-height: 100vh; padding: 40px 20px; }
+h1 { font-size: 22px; text-align: center; margin-bottom: 8px; }
+.subtitle { color: #8892a6; font-size: 14px; text-align: center; margin-bottom: 32px; }
+.preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+.card { background: #232938; border: 1px solid #3a4358; border-radius: 16px; padding: 16px; text-align: center; transition: all 0.3s; }
+.card:hover { border-color: #6c8eef; transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.card img { width: 140px; height: 140px; object-fit: contain; border-radius: 12px; background: #fff; margin-bottom: 10px; }
+.card h3 { font-size: 16px; margin-bottom: 2px; }
+.card h3.leader { color: #6c8eef; }
+.card h3.worker { color: #4ac4a0; }
+.card h3.verifier { color: #f0a04b; }
+.card .role { font-size: 12px; color: #8892a6; }
+.card .animal { font-size: 11px; color: #5a6378; margin-top: 2px; }
+.tier-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 600; margin-top: 6px; }
+.tier-badge.leader { background: rgba(108,142,239,0.15); color: #6c8eef; }
+.tier-badge.worker { background: rgba(74,196,160,0.15); color: #4ac4a0; }
+.tier-badge.verifier { background: rgba(240,160,75,0.15); color: #f0a04b; }
+</style>
+</head>
+<body>
+<h1>熊出没集团 — 3D 角色全集</h1>
+<p class="subtitle">低多边形 Q 版 3D 渲染 · 弓箭手大作战风格 · 14 角色</p>
+<div class="preview-grid" id="grid"></div>
+<script>
+const ROLES = [
+  { id:'xiongda', name:'熊大', duty:'总裁', tier:'leader', animal:'棕熊' },
+  { id:'guangtouqiang', name:'光头强', duty:'架构', tier:'worker', animal:'人类·伐木工' },
+  { id:'xionger', name:'熊二', duty:'开发', tier:'worker', animal:'棕熊' },
+  { id:'luobotou', name:'萝卜头', duty:'调试', tier:'worker', animal:'鼹鼠' },
+  { id:'bengbeng', name:'蹦蹦', duty:'测试', tier:'worker', animal:'松鼠' },
+  { id:'cuihua', name:'翠花', duty:'界面', tier:'worker', animal:'母熊' },
+  { id:'tutu', name:'涂涂', duty:'视觉', tier:'worker', animal:'猫头鹰' },
+  { id:'tuotuo', name:'拖拖', duty:'运维', tier:'worker', animal:'乌龟' },
+  { id:'maomao', name:'毛毛', duty:'调研', tier:'worker', animal:'金色小猴' },
+  { id:'feibo', name:'肥波', duty:'文档', tier:'worker', animal:'肥猫' },
+  { id:'jiji', name:'吉吉国王', duty:'代码质检', tier:'verifier', animal:'猴子' },
+  { id:'laoe', name:'老鳄', duty:'设计质检', tier:'verifier', animal:'鳄鱼' },
+  { id:'xiaoli', name:'小狸', duty:'质量门禁', tier:'verifier', animal:'狐狸' },
+  { id:'tiezhang', name:'铁掌大师', duty:'安全', tier:'verifier', animal:'东北虎' },
+];
+const tierLabel = { leader: 'Leader', worker: 'Worker', verifier: 'Verifier' };
+const grid = document.getElementById('grid');
+ROLES.forEach(r => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <img src="assets/characters/3d-${r.id}.jpg" alt="${r.name}" loading="lazy">
+    <h3 class="${r.tier}">${r.name}</h3>
+    <div class="role">${r.duty}</div>
+    <div class="animal">${r.animal}</div>
+    <span class="tier-badge ${r.tier}">${tierLabel[r.tier]}</span>
+  `;
+  grid.appendChild(card);
+});
+</script>
+</body>
+</html>

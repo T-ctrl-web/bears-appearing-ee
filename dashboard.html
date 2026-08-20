@@ -491,13 +491,17 @@ body {
   position: relative;
   height: clamp(420px, 62vh, 560px);
   background:
-    radial-gradient(ellipse at 50% -10%, rgba(255,255,255,0.9), transparent 60%),
-    linear-gradient(180deg, #f8f3e9 0%, #efe6d4 100%);
-  border: 1px solid #d8cbb2;
+    radial-gradient(ellipse at 50% 0%, rgba(108,142,239,0.06), transparent 50%),
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(108,142,239,0.06) 39px, rgba(108,142,239,0.06) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(108,142,239,0.06) 39px, rgba(108,142,239,0.06) 40px),
+    linear-gradient(180deg, #1e2838 0%, #1a2332 40%, #151c28 100%);
+  border: 1px solid #2a3548;
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 32px;
   display: none;
+  perspective: 700px;
+  perspective-origin: 50% 30%;
 }
 #officeStage.show { display: block; }
 
@@ -562,7 +566,7 @@ body {
 
 .bear {
   position: absolute;
-  width: 66px; margin-left: -33px; margin-top: -92px;
+  width: 66px; margin-left: -33px; margin-top: -100px;
   transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95), opacity .5s;
   z-index: 10; cursor: pointer; text-align: center; user-select: none;
 }
@@ -578,25 +582,34 @@ body {
   animation: idle-breath 3s ease-in-out infinite;
 }
 .bear:hover .bear-body { transform: scale(1.1); }
-.bear.walking .bear-body { animation: walk-bounce 0.36s infinite ease-in-out; }
+.bear.walking .bear-body { animation: walk-bounce 0.3s infinite ease-in-out; }
 .bear.executing .bear-body { animation: work-sway 0.55s infinite ease-in-out; }
-.bear.walking.left .bear-body { animation: walk-bounce-left 0.36s infinite ease-in-out; }
+.bear.walking.left .bear-body { animation: walk-bounce-left 0.3s infinite ease-in-out; }
 
 @keyframes idle-breath { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-1px) scale(1.02); } }
-@keyframes walk-bounce { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(2deg); } }
-@keyframes walk-bounce-left { 0%,100% { transform: translateY(0) rotate(2deg) scaleX(-1); } 50% { transform: translateY(-4px) rotate(-2deg) scaleX(-1); } }
+@keyframes walk-bounce {
+  0%, 100% { transform: translateY(0) rotate(-3deg) scaleY(1); }
+  25%      { transform: translateY(-6px) rotate(0deg) scaleY(1.03); }
+  50%      { transform: translateY(0) rotate(3deg) scaleY(1); }
+  75%      { transform: translateY(-6px) rotate(0deg) scaleY(1.03); }
+}
+@keyframes walk-bounce-left {
+  0%, 100% { transform: translateY(0) rotate(3deg) scaleX(-1) scaleY(1); }
+  25%      { transform: translateY(-6px) rotate(0deg) scaleX(-1) scaleY(1.03); }
+  50%      { transform: translateY(0) rotate(-3deg) scaleX(-1) scaleY(1); }
+  75%      { transform: translateY(-6px) rotate(0deg) scaleX(-1) scaleY(1.03); }
+}
 @keyframes work-sway { 0%,100% { transform: rotate(0); } 30% { transform: rotate(-1.5deg); } 70% { transform: rotate(1.5deg); } }
 
-/* 角色立绘图片（全身 Q 版立绘，圆角卡片风格，无白边） */
+/* 角色立绘图片（透明背景，无卡片框，drop-shadow 浮于地面） */
 .bear-portrait {
-  width: 56px; height: 72px;
-  object-fit: cover;
-  object-position: center 15%;
+  width: 60px; height: 80px;
+  object-fit: contain;
+  object-position: center bottom;
   display: block;
   margin: 0 auto;
-  border-radius: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-  transition: box-shadow 0.3s;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+  transition: filter 0.3s;
 }
 
 /* 走路时影子缩小跳动 */
@@ -622,12 +635,12 @@ body {
 .bear.has-activity .bear-activity { opacity: 1; }
 @keyframes activity-float { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-3px); } }
 
-/* 影子（浅色场景柔和版） */
+/* 影子（暗色地面适配） */
 .bear::after {
   content: ''; position: absolute; left: 50%; bottom: 15px;
   transform: translateX(-50%);
-  width: 34px; height: 8px; border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(90,70,40,0.28) 0%, transparent 68%);
+  width: 38px; height: 9px; border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, transparent 65%);
   transition: transform .3s, opacity .3s; pointer-events: none;
 }
 .bear.walking::after { transform: translateX(-50%) scale(0.78); opacity: 0.6; }
@@ -640,14 +653,14 @@ body {
   pointer-events: none;
 }
 
-.bear .bear-name { font-size: 10px; color: #8a8070; margin-top: 2px; white-space: nowrap; transition: color .3s; font-weight: 500; }
-.bear.executing .bear-portrait { box-shadow: 0 0 0 2px rgba(46,184,138,0.6), 0 2px 8px rgba(46,184,138,0.3); }
+.bear .bear-name { font-size: 10px; color: #8892a6; margin-top: 2px; white-space: nowrap; transition: color .3s; font-weight: 500; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+.bear.executing .bear-portrait { filter: drop-shadow(0 0 8px rgba(46,184,138,0.8)) drop-shadow(0 4px 6px rgba(0,0,0,0.5)); }
 .bear.executing .bear-name { color: #1f9d6f; }
-.bear.waiting .bear-portrait { box-shadow: 0 0 0 2px rgba(230,150,50,0.6), 0 2px 8px rgba(230,150,50,0.3); }
+.bear.waiting .bear-portrait { filter: drop-shadow(0 0 6px rgba(230,150,50,0.7)) drop-shadow(0 4px 6px rgba(0,0,0,0.5)); }
 .bear.waiting .bear-name { color: #c07820; }
-.bear.done .bear-portrait { box-shadow: 0 0 0 2px rgba(60,180,110,0.5), 0 2px 6px rgba(0,0,0,0.12); }
+.bear.done .bear-portrait { filter: drop-shadow(0 0 5px rgba(60,180,110,0.5)) drop-shadow(0 4px 6px rgba(0,0,0,0.5)); }
 .bear.done .bear-name { color: #2f9e63; }
-.bear.failed .bear-portrait { box-shadow: 0 0 0 2px rgba(220,80,80,0.6), 0 2px 8px rgba(220,80,80,0.3); }
+.bear.failed .bear-portrait { filter: drop-shadow(0 0 7px rgba(220,80,80,0.7)) drop-shadow(0 4px 6px rgba(0,0,0,0.5)); }
 .bear.failed .bear-name { color: #cc4444; }
 .bear.walking.left .bear-body { transform: scaleX(-1); }
 
@@ -710,19 +723,10 @@ body {
 
   <!-- 办公室场景（MAVIS 风格小人世界） -->
   <div id="officeStage">
-    <div class="office-zone" style="left:2%; top:5%; width:26%; height:90%; background:rgba(212,165,116,0.22)"></div>
-    <div class="facility" style="left:6%; top:11%">📺</div>
-    <div class="facility" style="left:23%; top:11%">☕</div>
-    <div class="facility" style="left:6%; top:27%">🛋️</div>
-    <div class="facility" style="left:23%; top:36%">🏓</div>
-    <div class="facility" style="left:6%; top:51%">🎮</div>
-    <div class="facility" style="left:23%; top:58%">🪴</div>
-    <div class="facility" style="left:6%; top:73%">🍜</div>
-    <div class="facility" style="left:23%; top:76%">🌿</div>
-    <div class="office-zone" style="left:31%; top:5%; width:38%; height:58%; background:rgba(120,150,235,0.16)"></div>
-    <div class="office-zone" style="left:72%; top:5%; width:26%; height:45%; background:rgba(240,160,75,0.18)"></div>
-    <div class="office-zone" style="left:31%; top:67%; width:38%; height:28%; background:rgba(170,135,215,0.16)"></div>
-    <div class="office-zone" style="left:72%; top:53%; width:26%; height:42%; background:rgba(84,196,165,0.16)"></div>
+    <div class="office-zone" style="left:5%; top:5%; width:41%; height:55%; background:rgba(108,142,239,0.06); border:1px solid rgba(108,142,239,0.12)"></div>
+    <div class="office-zone" style="left:54%; top:5%; width:30%; height:40%; background:rgba(240,160,75,0.06); border:1px solid rgba(240,160,75,0.12)"></div>
+    <div class="office-zone" style="left:5%; top:68%; width:56%; height:27%; background:rgba(170,135,215,0.06); border:1px solid rgba(170,135,215,0.12)"></div>
+    <div class="office-zone" style="left:80%; top:45%; width:18%; height:50%; background:rgba(84,196,165,0.06); border:1px solid rgba(84,196,165,0.12)"></div>
   </div>
 
   <!-- Leader 组 -->
@@ -1089,31 +1093,61 @@ function resetBoard() {
   document.getElementById('logArea').innerHTML = '';
 }
 
+// === Canvas 抠白底：将角色图片的白底变透明 ===
+const transparentCache = {};
+function initTransparentSprites() {
+  return Promise.all(ROLES.map(function(r) {
+    return new Promise(function(resolve) {
+      var src = r.sprite || r.img;
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        try {
+          var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          var data = imageData.data;
+          for (var i = 0; i < data.length; i += 4) {
+            var brightness = (data[i] + data[i+1] + data[i+2]) / 3;
+            if (brightness > 240) {
+              data[i+3] = 0;
+            } else if (brightness > 210) {
+              data[i+3] = Math.floor((240 - brightness) / 30 * 255);
+            }
+          }
+          ctx.putImageData(imageData, 0, 0);
+          transparentCache[r.id] = canvas.toDataURL('image/png');
+        } catch(e) {
+          transparentCache[r.id] = src;
+        }
+        resolve();
+      };
+      img.onerror = function() { transparentCache[r.id] = src; resolve(); };
+      img.src = src;
+    });
+  }));
+}
+
 // === 办公室场景（MAVIS 风格走动交互） ===
 const OfficeScene = (() => {
   const bears = {};
 
   // 各区域点位（百分比坐标，以熊中心点定位）
+  // 无休息区：工位铺满左侧，验证区右侧，交付区中下，修复区左下
   const DESKS = [
-    {x:37,y:16},{x:50,y:16},{x:63,y:16},
-    {x:37,y:32},{x:50,y:32},{x:63,y:32},
-    {x:37,y:48},{x:50,y:48},{x:63,y:48},
+    {x:12,y:15},{x:26,y:15},{x:40,y:15},
+    {x:12,y:35},{x:26,y:35},{x:40,y:35},
+    {x:12,y:55},{x:26,y:55},{x:40,y:55},
   ];
-  const VERIFY_SPOTS = [{x:79,y:14},{x:90,y:14},{x:79,y:30},{x:90,y:30}];
-  const CEO_DESK = {x:85,y:60};
-  const DELIVERY_SPOT = {x:81,y:82};
-  const FIX_SPOTS = [{x:37,y:76},{x:50,y:80},{x:63,y:76},{x:44,y:88}];
-  // 休息室点位：围绕娱乐设施排布（沙发前看电视/咖啡机旁/乒乓球台/街机/零食柜/绿植边）
-  const IDLE_SPOTS = [
-    {x:9,y:18},{x:16,y:19},{x:8,y:30},{x:15,y:30},   // 沙发区看电视
-    {x:23,y:17},{x:26,y:23},                          // 咖啡机旁
-    {x:20,y:39},{x:26,y:39},                          // 乒乓球台
-    {x:9,y:55},{x:13,y:58},                           // 街机
-    {x:9,y:77},{x:14,y:80},                           // 零食柜
-    {x:24,y:62},{x:23,y:80},                          // 绿植/盆栽边
-    {x:16,y:48},{x:17,y:90},                          // 散座
-  ];
-  const GREETINGS = ['嗨！','忙啥呢？','加油！','嘿嘿~','这咖啡真香~','来局乒乓球？','追剧呢？','零食分我点~','辛苦啦！','今天状态不错'];
+  const VERIFY_SPOTS = [{x:60,y:15},{x:75,y:15},{x:60,y:35},{x:75,y:35}];
+  const CEO_DESK = {x:88,y:55};
+  const DELIVERY_SPOT = {x:55,y:82};
+  const FIX_SPOTS = [{x:12,y:78},{x:26,y:80},{x:40,y:78},{x:55,y:80}];
+  // 休息区已撤销：idle = deskSpot（常驻工位）
+  const GREETINGS = ['嗨！','忙啥呢？','加油！','辛苦啦！','今天状态不错','这块代码写得漂亮'];
   const STATUS_CLASS = { idle:'idle', executing:'executing', waiting:'waiting', done:'done', failed:'failed' };
   const STATUS_BADGE = { idle:'💤', executing:'⚡', waiting:'⏳', done:'✅', failed:'❌' };
 
@@ -1137,7 +1171,7 @@ const OfficeScene = (() => {
     body.className = 'bear-body';
     const portrait = document.createElement('img');
     portrait.className = 'bear-portrait';
-    portrait.src = role.sprite || role.img;
+    portrait.src = transparentCache[role.id] || role.sprite || role.img;
     portrait.alt = role.name;
     portrait.loading = 'lazy';
     body.appendChild(portrait);
@@ -1329,35 +1363,34 @@ const OfficeScene = (() => {
 
   function targetFor(bear, status) {
     const tier = bear.role.tier;
-    if (status === 'executing') return bear.deskSpot; // leader→总裁办公桌 / verifier→验证区 / worker→工位（萝卜头→修复区）
+    if (status === 'executing') return bear.deskSpot;
     if (status === 'waiting') return bear.waitSpot;
     if (status === 'failed') {
-      // Verifier「驳回」是本职工作，留在验证区工位；Worker 失败才进修复区
       return tier === 'verifier' ? bear.deskSpot : bear.fixSpot;
     }
-    return bear.idleSpot;
+    return bear.deskSpot; // idle = 常驻工位
   }
 
-  // 活动系统：休息区随机活动 + 工作区岗位活动
-  const REST_ACTS = ['📺','💬','☕','🎮','😴','📖','🎧','🧩'];
+  // 活动系统：工位待命活动 + 工作状态活动
+  const IDLE_ACTS = ['💤','📝','💡','☕'];
   const WORK_ACTS = { executing: '⌨️', waiting: '⏳', done: '📦', failed: '🔧' };
   function setActivity(bear, emoji) {
     bear.activity.textContent = emoji || '';
     bear.el.classList.toggle('has-activity', !!emoji);
   }
-  function startRestActivity(bear) {
-    setActivity(bear, REST_ACTS[Math.floor(Math.random() * REST_ACTS.length)]);
+  function startIdleActivity(bear) {
+    setActivity(bear, IDLE_ACTS[Math.floor(Math.random() * IDLE_ACTS.length)]);
     clearTimeout(bear.activityTimer);
     bear.activityTimer = setTimeout(() => {
-      if (bear.status === 'idle') startRestActivity(bear);
-    }, 5000 + Math.random() * 6000);
+      if (bear.status === 'idle') startIdleActivity(bear);
+    }, 6000 + Math.random() * 8000);
   }
   function stopActivity(bear) {
     clearTimeout(bear.activityTimer);
     setActivity(bear, '');
   }
 
-  // 状态驱动走位：idle→休息区 / executing→各自岗位 / done→交付区后回休息区 / failed→修复区
+  // 状态驱动走位：idle→常驻工位 / executing→工位 / done→交付后回工位 / failed→修复区
   function updateRole(roleId, status, task) {
     const bear = bears[roleId];
     if (!bear) return;
@@ -1366,7 +1399,7 @@ const OfficeScene = (() => {
     Object.values(STATUS_CLASS).forEach(c => bear.el.classList.toggle(c, c === cls));
     bear.badge.textContent = STATUS_BADGE[status] || '';
     // 活动指示器
-    if (status === 'idle') { startRestActivity(bear); }
+    if (status === 'idle') { startIdleActivity(bear); }
     else if (WORK_ACTS[status]) { stopActivity(bear); setActivity(bear, WORK_ACTS[status]); }
     else { stopActivity(bear); }
     if (task && status === 'executing') speak(roleId, task, 3000);
@@ -1375,9 +1408,9 @@ const OfficeScene = (() => {
       place(bear, jitter(DELIVERY_SPOT, 6));
       bear.doneTimer = setTimeout(() => {
         if (bear.status === 'done') {
-          place(bear, bear.idleSpot, { jitter: true });
+          place(bear, bear.deskSpot, { jitter: true });
           bear.status = 'idle';
-          startRestActivity(bear);
+          startIdleActivity(bear);
           refreshFocus();
         }
       }, 3200);
@@ -1397,8 +1430,8 @@ const OfficeScene = (() => {
       bear.el.classList.remove('walking', 'left', 'dimmed');
       clearTimeout(bear.bubbleTimer); clearTimeout(bear.walkTimer); clearTimeout(bear.doneTimer);
       bear.bubble.classList.remove('show');
-      place(bear, bear.idleSpot);
-      startRestActivity(bear);
+      place(bear, bear.deskSpot);
+      startIdleActivity(bear);
     }
   }
 
@@ -1409,28 +1442,19 @@ const OfficeScene = (() => {
     });
   }
 
-  // 闲逛：空闲的熊偶尔溜达（低频；任务执行期间保持安静，聚焦工作）
+  // 无休息区：空闲角色常驻工位，不再闲逛
+  // 闲聊：两只空闲的熊偶尔隔空搭话（低频；任务执行期间不打扰）
   setInterval(() => {
     if (taskActive()) return;
     const idle = Object.values(bears).filter(b => b.status === 'idle');
-    if (idle.length && Math.random() < 0.35) {
-      const bear = idle[Math.floor(Math.random() * idle.length)];
-      place(bear, bear.idleSpot, { jitter: true });
-    }
-  }, 15000);
-
-  // 闲聊：两只空闲的熊在休息室随机搭话（低频；任务执行期间不打扰）
-  setInterval(() => {
-    if (taskActive()) return;
-    const idle = Object.values(bears).filter(b => b.status === 'idle');
-    if (idle.length >= 2 && Math.random() < 0.4) {
+    if (idle.length >= 2 && Math.random() < 0.3) {
       const a = idle[Math.floor(Math.random() * idle.length)];
       const b = idle[Math.floor(Math.random() * idle.length)];
       if (a === b) return;
       speak(a.role.id, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], 2400);
       setTimeout(() => speak(b.role.id, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], 2400), 600);
     }
-  }, 20000);
+  }, 25000);
 
   function init() {
     if (inited) return;
@@ -1454,24 +1478,24 @@ const OfficeScene = (() => {
         speak(nearest.role.id, '来啦？叫我吗？', 2600);
       }
     });
-    let deskIdx = 0, verifyIdx = 0, idleIdx = 0, fixIdx = 0;
+    let deskIdx = 0, verifyIdx = 0, fixIdx = 0;
     // 家具：工位桌×9（蓝屏）/ 验证桌×4（橙屏）/ 总裁桌（宽）/ 交付货架 / 修复工作台
     DESKS.forEach(s => createDesk(s.x, s.y));
     VERIFY_SPOTS.forEach(s => createDesk(s.x, s.y, { screen: '#8a5a20' }));
     createDesk(CEO_DESK.x, CEO_DESK.y, { wide: true, screen: '#4a6fa5' });
-    createBigFurn(DELIVERY_SPOT.x + 8, DELIVERY_SPOT.y + 8, '📦');
-    createBigFurn(50, 88, '🛠️');
+    createBigFurn(68, 85, '📦');
+    createBigFurn(5, 88, '🛠️');
     ROLES.forEach(role => {
       const bear = createBear(role);
-      bears[role.id] = bear; // 注册进映射表，供 updateRole/speak/resetAll/celebrate 查找
+      bears[role.id] = bear;
       if (role.tier === 'verifier') bear.deskSpot = VERIFY_SPOTS[verifyIdx++ % VERIFY_SPOTS.length];
       else if (role.tier === 'leader') bear.deskSpot = CEO_DESK;
-      else if (role.id === 'luobotou') bear.deskSpot = { x: 50, y: 80 }; // 调试岗常驻修复区（他的工作就是修 Bug）
+      else if (role.id === 'luobotou') bear.deskSpot = { x: 26, y: 80 }; // 调试岗常驻修复区
       else bear.deskSpot = DESKS[deskIdx++ % DESKS.length];
-      bear.idleSpot = IDLE_SPOTS[idleIdx++ % IDLE_SPOTS.length];
+      bear.idleSpot = bear.deskSpot; // 无休息区：idle 常驻工位
       bear.fixSpot = FIX_SPOTS[fixIdx++ % FIX_SPOTS.length];
-      bear.waitSpot = jitter(bear.deskSpot, 6);
-      place(bear, bear.idleSpot);
+      bear.waitSpot = jitter(bear.deskSpot, 4);
+      place(bear, bear.deskSpot);
     });
   }
 
@@ -1605,20 +1629,16 @@ function applyServerState(s) {
   if (s.task && s.task.status !== 'completed') celebrated = false;
 }
 
-// 角色立绘映射（AI 生成的 Pixar 风格 Q 版 3D 全身立绘，白底）
-const SPRITE_MAP = {
-  xiongda: 'char-xiongda-action', guangtouqiang: 'char-guangtouqiang-action', xionger: 'char-xionger',
-  luobotou: 'char-luobotou', bengbeng: 'char-bengbeng', cuihua: 'char-cuihua',
-  tutu: 'char-tutu', tuotuo: 'char-tuotuo', maomao: 'char-maomao', feibo: 'char-feibo',
-  jiji: 'char-jiji', laoe: 'char-laoe', xiaoli: 'char-xiaoli', tiezhang: 'char-tiezhang',
-};
-ROLES.forEach(r => { r.sprite = `assets/characters/${SPRITE_MAP[r.id]}.jpg`; });
+// 角色立绘映射（AI 生成的 3D 低多边形 Q 版立绘，弓箭手大作战风格，白底）
+ROLES.forEach(r => { r.sprite = `assets/characters/3d-${r.id}.jpg`; r.img = r.sprite; });
 
 // === 初始化 ===
 initState();
-OfficeScene.init();
-setOfficeMode(true); // 默认进入小人世界（卡片降为「花名册」按需查看）
-renderRoles();
+initTransparentSprites().then(() => {
+  OfficeScene.init();
+  setOfficeMode(true); // 默认进入小人世界（卡片降为「花名册」按需查看）
+  renderRoles();
+});
 renderTimeline(DEMO_WAVES, 0);
 updateProgress(0, 0);
 </script>
