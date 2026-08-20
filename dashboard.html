@@ -830,6 +830,10 @@ const ROLES = [
     desc:'Level 3 强对抗审查（最多3轮）' }
 ];
 
+// 角色立绘映射（AI 生成的 3D 低多边形 Q 版立绘，弓箭手大作战风格，白底）
+// 在 ROLES 定义后立即覆盖，避免任何早期渲染引用已删除的旧图路径
+ROLES.forEach(r => { r.sprite = `assets/characters/3d-${r.id}.jpg`; r.img = r.sprite; });
+
 // === 状态 ===
 let roleStates = {};
 let logs = [];
@@ -1632,9 +1636,6 @@ function applyServerState(s) {
   }
   if (s.task && s.task.status !== 'completed') celebrated = false;
 }
-
-// 角色立绘映射（AI 生成的 3D 低多边形 Q 版立绘，弓箭手大作战风格，白底）
-ROLES.forEach(r => { r.sprite = `assets/characters/3d-${r.id}.jpg`; r.img = r.sprite; });
 
 // === 初始化 ===
 initState();

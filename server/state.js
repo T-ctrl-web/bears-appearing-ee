@@ -1,7 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
-const PERSIST_PATH = path.join(__dirname, '..', 'data', 'state-backup.json');
+// 持久化目录：桌面版（MAVIS_USER_DATA=Electron userData）优先，开发态用 ~/.mavis。
+// 不能落在项目目录内：打包后项目路径位于只读的 app.asar，写入会静默失败。
+const PERSIST_DIR = process.env.MAVIS_USER_DATA || path.join(os.homedir(), '.mavis');
+const PERSIST_PATH = path.join(PERSIST_DIR, 'state-backup.json');
 
 const ROLES = [
   { id: 'xiongda', name: '熊大', role: '总裁', tier: 'leader', avatar: '🐻' },

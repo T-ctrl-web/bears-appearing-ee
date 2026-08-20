@@ -24,7 +24,7 @@ test('未配置 Key → mock 引擎演示模式', () => {
 });
 
 test('配置 Key → deepseek 引擎', () => {
-  const a = new HarnessAdapter({ apiKey: 'sk-test' });
+  const a = new HarnessAdapter({ apiKey: 'sk-test', model: 'deepseek-chat' });
   assert.equal(a.config.engine, 'deepseek');
   assert.equal(a.engineStatus.configured, true);
   assert.equal(a.engineStatus.model, 'deepseek-chat');
@@ -77,7 +77,7 @@ test('deepseek：请求携带角色 system prompt 与任务 user prompt', withMo
     return { ok: true, json: async () => ({ choices: [{ message: { content: 'ok' } }] }) };
   },
   async () => {
-    const a = new HarnessAdapter({ apiKey: 'sk-test' });
+    const a = new HarnessAdapter({ apiKey: 'sk-test', model: 'deepseek-chat' });
     const r = await a.executeWorker({ roleId: 'guangtouqiang', task: '设计登录架构', context: '参考调研报告' });
     assert.equal(r.status, 'success');
   }
