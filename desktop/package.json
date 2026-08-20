@@ -1,6 +1,7 @@
 {
   "name": "bears-appearing-ee-desktop",
-  "version": "1.0.0",
+  "productName": "熊出没集团",
+  "version": "1.0.1",
   "author": "Bears Group",
   "description": "熊出没集团 · 纸片人工作看板 桌面版（Electron 壳，复用零依赖 node server）",
   "main": "main.js",
