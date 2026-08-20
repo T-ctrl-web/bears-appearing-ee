@@ -571,10 +571,31 @@ body {
 
 /* 精美立绘小人：AI 全身立绘，白底 multiply 融入明亮场景 */
 .bear-body { position: relative; animation: idle-breath 3.4s ease-in-out infinite; transition: transform .25s; }
-.bear.walking .bear-body { animation: bear-bob 0.34s infinite alternate ease-in-out; }
+.bear.walking .bear-body { animation: walk-cycle 0.4s infinite ease-in-out; }
+.bear.executing .bear-body { animation: work-cycle 0.5s infinite ease-in-out; }
 .bear:hover .bear-body { transform: scale(1.1); }
 @keyframes idle-breath { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1.5px) scaleY(1.02); } }
-@keyframes bear-bob { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+
+/* 走路动画：上下弹跳 + 左右摇摆 + 微旋转，模拟四肢摆动 */
+@keyframes walk-cycle {
+  0%   { transform: translateY(0) rotate(-3deg) scaleY(1); }
+  25%  { transform: translateY(-6px) rotate(0deg) scaleY(0.97); }
+  50%  { transform: translateY(0) rotate(3deg) scaleY(1); }
+  75%  { transform: translateY(-6px) rotate(0deg) scaleY(0.97); }
+  100% { transform: translateY(0) rotate(-3deg) scaleY(1); }
+}
+
+/* 工作动画：微小前后摇晃 + 轻微缩放，模拟敲键盘/看屏幕 */
+@keyframes work-cycle {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); }
+  30%  { transform: translateY(-1px) rotate(-1deg) scale(1.01); }
+  60%  { transform: translateY(0) rotate(1deg) scale(1); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+
+/* 走路时影子缩小跳动 */
+.bear.walking::after { animation: shadow-bounce 0.4s infinite ease-in-out; }
+@keyframes shadow-bounce { 0%,100% { transform: translateX(-50%) scale(1); opacity:0.28; } 50% { transform: translateX(-50%) scale(0.72); opacity:0.18; } }
 
 .bear-sprite { transition: transform 0.25s; }
 .bear .bear-img {
@@ -1237,7 +1258,7 @@ const OfficeScene = (() => {
     return bear.idleSpot;
   }
 
-  // 状态驱动走位：idle→休息区 / executing→各自岗位 / done→交付区后回休息区 / failed→修复区
+  // 状态驱动走位：idle→休息区 / executing→各自岗位 / done→留在岗位 / failed→修复区
   function updateRole(roleId, status, task) {
     const bear = bears[roleId];
     if (!bear) return;
@@ -1248,14 +1269,8 @@ const OfficeScene = (() => {
     if (task && status === 'executing') speak(roleId, task, 3000);
     clearTimeout(bear.doneTimer);
     if (status === 'done') {
-      place(bear, jitter(DELIVERY_SPOT, 6)); // 交付区聚集，带随机散布避免重叠
-      bear.doneTimer = setTimeout(() => {
-        if (bear.status === 'done') {
-          place(bear, bear.idleSpot, { jitter: true });
-          bear.status = 'idle'; // 交付完成回休息室（场景内部状态，卡片视图不受影响）
-          refreshFocus();
-        }
-      }, 3200);
+      // 完成后留在自己的工位，不回休息区
+      place(bear, bear.deskSpot);
     } else {
       place(bear, targetFor(bear, status));
     }
