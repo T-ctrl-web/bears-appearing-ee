@@ -571,25 +571,35 @@ body {
 .bear.dimmed { opacity: 0.3; }
 .bear.dimmed:hover { opacity: 1; }
 
-/* 精美立绘小人：AI 全身立绘，白底 multiply 融入明亮场景 */
-.bear-body { position: relative; transition: transform .25s; animation: idle-breath 3.4s ease-in-out infinite; }
-.bear.walking .bear-body { animation: walk-cycle 0.4s infinite ease-in-out; }
-.bear.executing .bear-body { animation: work-cycle 0.5s infinite ease-in-out; }
+/* 角色立绘小人：全身立绘 + CSS 变换动画（无精灵图集，无帧闪烁，无白边） */
+.bear-body {
+  position: relative;
+  transition: transform .25s;
+  animation: idle-breath 3s ease-in-out infinite;
+}
 .bear:hover .bear-body { transform: scale(1.1); }
-@keyframes idle-breath { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1.5px) scaleY(1.02); } }
-@keyframes walk-cycle {
-  0%   { transform: translateY(0) rotate(-3deg) scaleY(1); }
-  25%  { transform: translateY(-6px) rotate(0deg) scaleY(0.97); }
-  50%  { transform: translateY(0) rotate(3deg) scaleY(1); }
-  75%  { transform: translateY(-6px) rotate(0deg) scaleY(0.97); }
-  100% { transform: translateY(0) rotate(-3deg) scaleY(1); }
+.bear.walking .bear-body { animation: walk-bounce 0.36s infinite ease-in-out; }
+.bear.executing .bear-body { animation: work-sway 0.55s infinite ease-in-out; }
+.bear.walking.left .bear-body { animation: walk-bounce-left 0.36s infinite ease-in-out; }
+
+@keyframes idle-breath { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-1px) scale(1.02); } }
+@keyframes walk-bounce { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(2deg); } }
+@keyframes walk-bounce-left { 0%,100% { transform: translateY(0) rotate(2deg) scaleX(-1); } 50% { transform: translateY(-4px) rotate(-2deg) scaleX(-1); } }
+@keyframes work-sway { 0%,100% { transform: rotate(0); } 30% { transform: rotate(-1.5deg); } 70% { transform: rotate(1.5deg); } }
+
+/* 角色立绘图片（全身 Q 版立绘，圆角卡片风格，无白边） */
+.bear-portrait {
+  width: 56px; height: 72px;
+  object-fit: cover;
+  object-position: center 15%;
+  display: block;
+  margin: 0 auto;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  transition: box-shadow 0.3s;
 }
-@keyframes work-cycle {
-  0%   { transform: translateY(0) rotate(0deg) scale(1); }
-  30%  { transform: translateY(-1px) rotate(-1deg) scale(1.01); }
-  60%  { transform: translateY(0) rotate(1deg) scale(1); }
-  100% { transform: translateY(0) rotate(0deg) scale(1); }
-}
+
+/* 走路时影子缩小跳动 */
 .bear.walking::after { animation: shadow-bounce 0.4s infinite ease-in-out; }
 @keyframes shadow-bounce { 0%,100% { transform: translateX(-50%) scale(1); opacity:0.28; } 50% { transform: translateX(-50%) scale(0.72); opacity:0.18; } }
 
@@ -631,13 +641,13 @@ body {
 }
 
 .bear .bear-name { font-size: 10px; color: #8a8070; margin-top: 2px; white-space: nowrap; transition: color .3s; font-weight: 500; }
-.bear.executing .bear-img { filter: drop-shadow(0 0 7px rgba(46,184,138,0.75)); }
+.bear.executing .bear-portrait { box-shadow: 0 0 0 2px rgba(46,184,138,0.6), 0 2px 8px rgba(46,184,138,0.3); }
 .bear.executing .bear-name { color: #1f9d6f; }
-.bear.waiting .bear-img { filter: drop-shadow(0 0 6px rgba(230,150,50,0.7)); }
+.bear.waiting .bear-portrait { box-shadow: 0 0 0 2px rgba(230,150,50,0.6), 0 2px 8px rgba(230,150,50,0.3); }
 .bear.waiting .bear-name { color: #c07820; }
-.bear.done .bear-img { filter: drop-shadow(0 0 6px rgba(60,180,110,0.6)); }
+.bear.done .bear-portrait { box-shadow: 0 0 0 2px rgba(60,180,110,0.5), 0 2px 6px rgba(0,0,0,0.12); }
 .bear.done .bear-name { color: #2f9e63; }
-.bear.failed .bear-img { filter: drop-shadow(0 0 7px rgba(220,80,80,0.75)); }
+.bear.failed .bear-portrait { box-shadow: 0 0 0 2px rgba(220,80,80,0.6), 0 2px 8px rgba(220,80,80,0.3); }
 .bear.failed .bear-name { color: #cc4444; }
 .bear.walking.left .bear-body { transform: scaleX(-1); }
 
@@ -1122,13 +1132,15 @@ const OfficeScene = (() => {
     // 状态徽章
     const badge = document.createElement('div');
     badge.className = 'bear-badge'; badge.textContent = '💤';
-    // 头像小人 + 活动指示器
+    // 角色立绘小人 + 活动指示器
     const body = document.createElement('div');
     body.className = 'bear-body';
-    const img = document.createElement('img');
-    img.className = 'bear-img';
-    img.src = role.img; img.alt = role.name; img.loading = 'lazy';
-    body.appendChild(img);
+    const portrait = document.createElement('img');
+    portrait.className = 'bear-portrait';
+    portrait.src = role.sprite || role.img;
+    portrait.alt = role.name;
+    portrait.loading = 'lazy';
+    body.appendChild(portrait);
     const activity = document.createElement('div');
     activity.className = 'bear-activity'; activity.textContent = '';
     // 名牌
@@ -1510,7 +1522,7 @@ function connectSSE() {
   status.className = 'ws-status connecting';
 
   try {
-    evtSource = new EventSource('http://localhost:3120/events');
+    evtSource = new EventSource(`${location.protocol}//${location.host}/events`);
   } catch (e) {
     status.textContent = '🔴 连接失败';
     status.className = 'ws-status error';

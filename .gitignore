@@ -13,3 +13,6 @@ Thumbs.db
 
 # IDE 生成目录
 .trae-html-share-packages/
+
+# 构建产物（含 base64 内嵌图片，体积大，可由 build-standalone.js 重新生成）
+dashboard-standalone.html

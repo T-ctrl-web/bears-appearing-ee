@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 3120;
+const PORT = 3121;
 const ROOT = path.resolve(__dirname, '..');
 const DASHBOARD = path.join(ROOT, 'dashboard.html');
 
@@ -65,8 +65,8 @@ const server = http.createServer(async (req, res) => {
       const html = fs.readFileSync(DASHBOARD, 'utf-8');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
-    } catch {
-      sendJson(res, 404, { error: 'dashboard.html not found' });
+    } catch (e) {
+      sendJson(res, 404, { error: 'dashboard.html not found', path: DASHBOARD, detail: e.message });
     }
     return;
   }
@@ -264,7 +264,7 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { error: 'Not found', path: p });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n  熊出没集团 · 纸片人工作看板服务器`);
   console.log(`  ────────────────────────────────`);
   console.log(`  看板地址:  http://localhost:${PORT}`);
