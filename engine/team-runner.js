@@ -17,6 +17,45 @@
 const { StateMachine, STATES } = require('./state-machine');
 const { evaluateAuto } = require('./complexity-evaluator');
 const { mapLimit } = require('./harness-adapter');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+// 任务工作区根目录：桌面版（MAVIS_USER_DATA）优先，开发态 ~/.mavis。
+// 不放项目目录内（打包后项目位于只读 asar）。
+const WORKSPACE_ROOT = process.env.MAVIS_USER_DATA
+  ? path.join(process.env.MAVIS_USER_DATA, 'workspaces')
+  : path.join(os.homedir(), '.mavis', 'workspaces');
+
+function createWorkspace(taskInfo) {
+  const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const rand = Math.random().toString(36).slice(2, 6);
+  const slug = String(taskInfo.title || taskInfo.requirement || 'task')
+    .replace(/[^\w\u4e00-\u9fa5-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'task';
+  const dir = path.join(WORKSPACE_ROOT, `${ts}-${slug}-${rand}`);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function listWorkspaceFiles(dir, limit = 200) {
+  try {
+    const out = [];
+    const walk = (d, prefix) => {
+      for (const name of fs.readdirSync(d).sort()) {
+        if (out.length >= limit) return;
+        const full = path.join(d, name);
+        const rel = prefix ? `${prefix}/${name}` : name;
+        const st = fs.statSync(full);
+        out.push(st.isDirectory() ? `${rel}/` : rel);
+        if (st.isDirectory()) walk(full, rel);
+      }
+    };
+    walk(dir, '');
+    return out;
+  } catch {
+    return [];
+  }
+}
 
 class TeamRunner {
   constructor(stateModule, options = {}) {
@@ -65,6 +104,15 @@ class TeamRunner {
     this._verification = null;
     // autoExecute：由 harness 真实执行 Worker 任务（需同时具备 harness）
     this.autoExecute = !!(taskInfo.autoExecute && this.harness);
+    // 任务专属工作区：Worker 用工具把产出写成真实文件（工具层 P1/P2）
+    if (this.autoExecute && taskInfo.workspace !== false) {
+      try {
+        this.ctx.task.workspace = createWorkspace(taskInfo);
+        this.ctx.log('info', `任务工作区已创建：${this.ctx.task.workspace}`, 'xiongda');
+      } catch (e) {
+        this.ctx.log('warn', `工作区创建失败（退化为纯文本产出）：${e.message}`, 'xiongda');
+      }
+    }
     this.machine = new StateMachine(this.ctx);
     this.sm.startTask(taskInfo);
     this.machine.transition('DRAFTING');
@@ -133,13 +181,21 @@ class TeamRunner {
       this.ctx.log('info', `波次${waveIndex + 1}进入 harness 执行（${this.harness.config?.engine || 'harness'}引擎，最多3并发）`, null);
     }
     this._execution = mapLimit(wave.roles, 3, async (roleId) => {
-      const res = await this.harness.executeWorker({ roleId, task, context });
+      const res = await this.harness.executeWorker({
+        roleId, task, context,
+        workspace: this.ctx.task.workspace || null, // 工具层：产出落真实文件
+      });
       if (!this.ctx || this.currentState === 'IDLE') return res; // 任务已被重置，丢弃过期结果
 
       wave.outputs = wave.outputs || {};
       if (res.status === 'success') {
         wave.outputs[roleId] = res.output;
-        this.ctx.log('info', `${res.assignee}（${res.engine}）执行完成，耗时${res.duration_ms}ms`, roleId);
+        const meta = res.meta || {};
+        const toolNote = meta.toolCalls != null ? `，工具调用${meta.toolCalls}次` : '';
+        this.ctx.log('info', `${res.assignee}（${res.engine}）执行完成，耗时${res.duration_ms}ms${toolNote}`, roleId);
+        if (meta.files && meta.files.length) {
+          this.ctx.log('info', `产出文件 ${meta.files.length} 个：${meta.files.slice(0, 5).join('、')}${meta.files.length > 5 ? '…' : ''}`, roleId);
+        }
         const summary = String(res.output).slice(0, 120) + (String(res.output).length > 120 ? '…' : '');
         try { this.completeWorker(roleId, summary); }
         catch (e) { this.ctx.log('warn', `忽略过期的完成回调（${roleId}）：${e.message}`, roleId); }
@@ -208,6 +264,7 @@ class TeamRunner {
         outputs: wave.outputs || {},
         iteration: this.ctx.iterationCount + 1,
         maxIterations: this.ctx.maxIterations,
+        workspace: this.ctx.task.workspace || null, // 工具层：Verifier 只读工具看真实文件
       });
       if (!this.ctx || this.currentState === 'IDLE') return verdict; // 任务已被重置，丢弃过期结论
 
@@ -281,6 +338,12 @@ class TeamRunner {
         .map(([rid, out]) => `### ${this.ctx.getRoleName(rid)}\n${out ?? '（执行失败）'}`);
       if (outs.length) parts.push(`## 波次${i + 1}\n${outs.join('\n\n')}`);
     });
+    // 工具层交付：附工作区真实产物清单与路径
+    const ws = this.ctx.task?.workspace;
+    if (ws) {
+      const files = listWorkspaceFiles(ws);
+      parts.push(`## 工作区产物\n路径：${ws}\n${files.length ? files.map(p => `- ${p}`).join('\n') : '（无文件）'}`);
+    }
     return parts.join('\n\n') || '（无产出）';
   }
 

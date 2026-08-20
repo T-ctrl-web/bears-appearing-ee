@@ -4,6 +4,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { HarnessAdapter, mapLimit } = require('../harness-adapter');
 
 const REAL_FETCH = global.fetch;
@@ -24,7 +27,7 @@ test('未配置 Key → mock 引擎演示模式', () => {
 });
 
 test('配置 Key → deepseek 引擎', () => {
-  const a = new HarnessAdapter({ apiKey: 'sk-test' });
+  const a = new HarnessAdapter({ apiKey: 'sk-test', model: 'deepseek-chat' });
   assert.equal(a.config.engine, 'deepseek');
   assert.equal(a.engineStatus.configured, true);
   assert.equal(a.engineStatus.model, 'deepseek-chat');
@@ -77,7 +80,7 @@ test('deepseek：请求携带角色 system prompt 与任务 user prompt', withMo
     return { ok: true, json: async () => ({ choices: [{ message: { content: 'ok' } }] }) };
   },
   async () => {
-    const a = new HarnessAdapter({ apiKey: 'sk-test' });
+    const a = new HarnessAdapter({ apiKey: 'sk-test', model: 'deepseek-chat' });
     const r = await a.executeWorker({ roleId: 'guangtouqiang', task: '设计登录架构', context: '参考调研报告' });
     assert.equal(r.status, 'success');
   }
@@ -117,6 +120,116 @@ test('deepseek：空内容响应 → failed', withMockFetch(
     const r = await a.executeWorker({ roleId: 'feibo', task: '写文档' });
     assert.equal(r.status, 'failed');
     assert.match(r.error, /空内容/);
+  }
+));
+
+// === Agent Loop 工具层（workspace + function calling） ===
+
+test('工具层 Worker：tool_calls 写文件真实落盘，输出附工作区清单', withMockFetch(
+  (() => {
+    let call = 0;
+    return async (url, opts) => {
+      const body = JSON.parse(opts.body);
+      if (call === 0) {
+        call++;
+        assert.ok(Array.isArray(body.tools) && body.tools.length === 3, '应携带 3 个工具定义');
+        assert.equal(body.tool_choice, 'auto');
+        return { ok: true, status: 200, json: async () => ({
+          choices: [{ finish_reason: 'tool_calls', message: { content: '', tool_calls: [
+            { id: 'c1', type: 'function', function: { name: 'write_file', arguments: JSON.stringify({ path: 'src/index.js', content: 'console.log(42)' }) } },
+          ] } }],
+          usage: { total_tokens: 100 },
+        }) };
+      }
+      call++;
+      // 第二轮应包含 tool 结果消息
+      const roles = body.messages.map(m => m.role);
+      assert.ok(roles.includes('tool'), '第二轮请求应回填 tool 结果');
+      return { ok: true, status: 200, json: async () => ({
+        choices: [{ finish_reason: 'stop', message: { content: '已写入入口文件' } }],
+        usage: { total_tokens: 50 },
+      }) };
+    };
+  })(),
+  async () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'mavis-ws-'));
+    const a = new HarnessAdapter({ apiKey: 'sk-test', model: 'deepseek-chat' });
+    const r = await a.executeWorker({ roleId: 'xionger', task: '写入口文件', workspace: ws });
+    assert.equal(r.status, 'success');
+    assert.ok(fs.existsSync(path.join(ws, 'src', 'index.js')), '文件应真实落盘');
+    assert.equal(fs.readFileSync(path.join(ws, 'src', 'index.js'), 'utf-8'), 'console.log(42)');
+    assert.match(r.output, /工作区产出/);
+    assert.match(r.output, /src\/index\.js/);
+    assert.ok(r.meta.toolCalls >= 1);
+    assert.ok(r.meta.rounds >= 2);
+    assert.equal(r.tokens, 150);
+  }
+));
+
+test('工具层 Verifier：只读工具 + 基于真实文件给出结构化结论', withMockFetch(
+  (() => {
+    let call = 0;
+    return async (url, opts) => {
+      const body = JSON.parse(opts.body);
+      if (call === 0) {
+        call++;
+        const names = (body.tools || []).map(t => t.function.name);
+        assert.deepEqual(names.sort(), ['list_dir', 'read_file'], 'Verifier 只有只读工具');
+        return { ok: true, status: 200, json: async () => ({
+          choices: [{ finish_reason: 'tool_calls', message: { content: '', tool_calls: [
+            { id: 'v1', type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: 'src/index.js' }) } },
+          ] } }],
+          usage: { total_tokens: 80 },
+        }) };
+      }
+      call++;
+      const toolMsg = body.messages.find(m => m.role === 'tool');
+      assert.ok(toolMsg && toolMsg.content.includes('console.log(42)'), '读到的应是真实文件内容');
+      return { ok: true, status: 200, json: async () => ({
+        choices: [{ finish_reason: 'stop', message: { content: '审查通过，文件符合要求。\n{"passed": true, "issues": [], "verdict": "文件真实且正确"}' } }],
+        usage: { total_tokens: 40 },
+      }) };
+    };
+  })(),
+  async () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'mavis-ws-'));
+    fs.mkdirSync(path.join(ws, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(ws, 'src', 'index.js'), 'console.log(42)', 'utf-8');
+    const a = new HarnessAdapter({ apiKey: 'sk-test', model: 'deepseek-chat' });
+    const r = await a.executeVerifier({ verifierId: 'jiji', task: '写入口文件', outputs: { xionger: '完成' }, workspace: ws });
+    assert.equal(r.status, 'success');
+    assert.equal(r.passed, true);
+    assert.equal(r.parsed, true);
+    assert.ok(r.toolCalls >= 1);
+  }
+));
+
+test('工具层：路径越界的 tool_call 返回 ERROR 回填，不中断循环', withMockFetch(
+  (() => {
+    let call = 0;
+    return async () => {
+      if (call === 0) {
+        call++;
+        return { ok: true, status: 200, json: async () => ({
+          choices: [{ finish_reason: 'tool_calls', message: { content: '', tool_calls: [
+            { id: 'e1', type: 'function', function: { name: 'write_file', arguments: JSON.stringify({ path: '../evil.txt', content: 'x' }) } },
+          ] } }],
+          usage: { total_tokens: 30 },
+        }) };
+      }
+      call++;
+      return { ok: true, status: 200, json: async () => ({
+        choices: [{ finish_reason: 'stop', message: { content: '路径被拒，已改用安全路径。\n{"passed": true, "issues": [], "verdict": "ok"}' } }],
+        usage: { total_tokens: 20 },
+      }) };
+    };
+  })(),
+  async () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'mavis-ws-'));
+    const a = new HarnessAdapter({ apiKey: 'sk-test', model: 'deepseek-chat' });
+    const r = await a.executeWorker({ roleId: 'xionger', task: 'x', workspace: ws });
+    assert.equal(r.status, 'success');
+    assert.ok(!fs.existsSync(path.join(ws, '..', 'evil.txt')), '越界文件不应存在');
   }
 ));
 

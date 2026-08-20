@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-green/
+build-app/
+*.zip
+build.log
+build.finished
+packager.out
+7za-out.txt

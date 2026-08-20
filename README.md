@@ -113,10 +113,10 @@ cp config/harness-config.example.json config/harness-config.json  # 或配置文
 cd server && npm start                  # 启动横幅会显示 harness 状态
 
 # 3. 触发真实闭环（autoExecute: true）
-curl -X POST localhost:3120/api/sm/start -H "Content-Type: application/json" \
+curl -X POST localhost:3121/api/sm/start -H "Content-Type: application/json" \
   -d '{"requirement":"实现登录页","autoExecute":true}'
-curl -X POST localhost:3120/api/sm/complete-draft -H "Content-Type: application/json" -d '{}'
-curl -X POST localhost:3120/api/sm/dispatch -H "Content-Type: application/json" \
+curl -X POST localhost:3121/api/sm/complete-draft -H "Content-Type: application/json" -d '{}'
+curl -X POST localhost:3121/api/sm/dispatch -H "Content-Type: application/json" \
   -d '{"waveIndex":0,"waveData":{"roles":["guangtouqiang","xionger"],"task":"设计并实现登录页"}}'
 # Worker 并行真实调用 DeepSeek，全部完成后自动进入 VERIFYING
 # Verifier（按复杂度选级：medium→吉吉国王L1 / complex→老鳄L2 / 安全→铁掌大师L3）
