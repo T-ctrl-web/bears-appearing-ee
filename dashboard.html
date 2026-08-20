@@ -497,38 +497,66 @@ body {
 }
 #officeStage.show { display: block; }
 
+/* 场景区块：无边框纯色块，靠家具与底色自然分区 */
 .office-zone {
   position: absolute;
-  border: 1.5px dashed rgba(136,146,166,0.32);
-  border-radius: 12px;
-  background: rgba(45,53,72,0.32);
+  border-radius: 14px;
+  pointer-events: none;
 }
-.office-zone .zone-label {
-  position: absolute; top: 7px; left: 11px;
-  font-size: 11px; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap;
-}
+.office-zone .zone-label { display: none; }
 
-/* 休息室娱乐设施 */
+/* 休息室娱乐设施：纯 emoji 图标（无框无文字） */
 .facility {
   position: absolute;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
-  background: rgba(45,53,72,0.92);
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
   z-index: 5;
   transform: translateY(-50%);
-  white-space: nowrap;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
   pointer-events: none;
+}
+
+/* 办公家具（JS 按点位生成）：桌+显示器，熊在桌后似落座 */
+.fdesk {
+  position: absolute;
+  width: 38px; margin-left: -19px;
+  z-index: 11; pointer-events: none;
+}
+.fdesk .desk-top {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(180deg, #7a6a52, #5d5040);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.fdesk .desk-legbar {
+  width: 5px; height: 9px; background: #4a4034;
+  margin: 0 auto; border-radius: 0 0 2px 2px;
+}
+.fdesk .monitor {
+  position: absolute; top: -16px; left: 50%;
+  transform: translateX(-50%);
+  width: 15px; height: 11px; border-radius: 2px;
+  background: #39445c; border: 1px solid #55627f;
+  box-shadow: 0 0 6px rgba(108,142,239,0.25);
+}
+.fdesk .monitor::after {
+  content: ''; position: absolute; bottom: -4px; left: 50%;
+  transform: translateX(-50%);
+  width: 6px; height: 4px; background: #39445c;
+}
+.fdesk.wide { width: 56px; margin-left: -28px; }
+
+/* 货架 / 工作台等大件 emoji 家具 */
+.bigfurn {
+  position: absolute;
+  font-size: 26px; line-height: 1;
+  z-index: 5; pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 3px 5px rgba(0,0,0,0.4));
 }
 
 .bear {
   position: absolute;
-  width: 56px; margin-left: -28px; margin-top: -40px;
+  width: 56px; margin-left: -28px; margin-top: -52px;
   transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95), opacity .5s;
   z-index: 10; cursor: pointer; text-align: center; user-select: none;
 }
@@ -537,27 +565,48 @@ body {
 .bear.dimmed { opacity: 0.32; }
 .bear.dimmed:hover { opacity: 1; }
 
-/* 小人身体：头像 + 双腿 + 影子 + 状态徽章 */
-.bear-body { position: relative; animation: idle-breath 3.4s ease-in-out infinite; }
+/* 纸片小人：头（头像）+ 躯干（角色色）+ 双臂 + 双腿 */
+.bear-body { position: relative; animation: idle-breath 3.4s ease-in-out infinite; transition: transform .25s; }
 .bear.walking .bear-body { animation: bear-bob 0.34s infinite alternate ease-in-out; }
-@keyframes idle-breath { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1px) scaleY(1.04); } }
-@keyframes bear-bob { from { transform: translateY(0); } to { transform: translateY(-5px); } }
+.bear:hover .bear-body { transform: scale(1.1); }
+@keyframes idle-breath { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1px) scaleY(1.03); } }
+@keyframes bear-bob { from { transform: translateY(0); } to { transform: translateY(-4px); } }
 
 .bear-sprite { transition: transform 0.25s; }
 .bear img {
-  width: 44px; height: 44px; object-fit: cover; border-radius: 50%;
+  width: 40px; height: 40px; object-fit: cover; border-radius: 50%;
   border: 2px solid var(--bg3); background: var(--bg3);
   display: block; margin: 0 auto;
-  transition: border-color .35s, box-shadow .35s, transform .25s;
+  transition: border-color .35s, box-shadow .35s;
 }
-.bear:hover img { transform: scale(1.14); }
+
+/* 躯干（角色主题色圆角矩形） */
+.bear-torso {
+  position: relative;
+  width: 26px; height: 17px;
+  margin: -4px auto 0;
+  border-radius: 9px 9px 5px 5px;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.25);
+}
+
+/* 双臂（角色色小圆，走路摆动） */
+.bear-torso .arm {
+  position: absolute; top: 1px;
+  width: 7px; height: 12px; border-radius: 4px;
+  transform-origin: top center;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.15);
+}
+.bear-torso .arm.l { left: -6px; }
+.bear-torso .arm.r { right: -6px; }
+.bear.walking .bear-torso .arm.l { animation: leg-swing 0.3s 0.15s infinite alternate ease-in-out; }
+.bear.walking .bear-torso .arm.r { animation: leg-swing 0.3s infinite alternate ease-in-out; }
 
 /* 双腿（颜色由角色主题色注入） */
-.bear-legs { display: flex; gap: 7px; justify-content: center; margin-top: -3px; height: 9px; }
+.bear-legs { display: flex; gap: 6px; justify-content: center; height: 9px; }
 .bear-legs .leg { width: 5px; height: 9px; border-radius: 2.5px; transform-origin: top center; }
 .bear.walking .bear-legs .leg.l { animation: leg-swing 0.3s infinite alternate ease-in-out; }
 .bear.walking .bear-legs .leg.r { animation: leg-swing 0.3s 0.15s infinite alternate ease-in-out; }
-@keyframes leg-swing { from { transform: rotate(22deg); } to { transform: rotate(-22deg); } }
+@keyframes leg-swing { from { transform: rotate(20deg); } to { transform: rotate(-20deg); } }
 
 /* 影子 */
 .bear::after {
@@ -641,21 +690,21 @@ body {
 <!-- 主区域 -->
 <div class="main">
 
-  <!-- 办公室场景（MAVIS 风格走动交互） -->
+  <!-- 办公室场景（MAVIS 风格小人世界） -->
   <div id="officeStage">
-    <div class="office-zone" style="left:2%; top:5%; width:26%; height:90%"><span class="zone-label">☕ 员工休息室</span></div>
-    <div class="facility" style="left:4.5%; top:10%">📺 电视</div>
-    <div class="facility" style="left:21%; top:10%">☕ 咖啡机</div>
-    <div class="facility" style="left:4.5%; top:26%">🛋️ 沙发</div>
-    <div class="facility" style="left:21%; top:34%">🏓 乒乓球</div>
-    <div class="facility" style="left:4.5%; top:49%">🎮 街机</div>
-    <div class="facility" style="left:21%; top:56%">🪴 绿植</div>
-    <div class="facility" style="left:4.5%; top:71%">🍜 零食柜</div>
-    <div class="facility" style="left:21%; top:74%">🌿 盆栽</div>
-    <div class="office-zone" style="left:31%; top:5%; width:38%; height:55%"><span class="zone-label">💻 工位区</span></div>
-    <div class="office-zone" style="left:72%; top:5%; width:26%; height:42%"><span class="zone-label">🔍 验证区</span></div>
-    <div class="office-zone" style="left:31%; top:64%; width:38%; height:31%"><span class="zone-label">🔧 修复区</span></div>
-    <div class="office-zone" style="left:72%; top:51%; width:26%; height:44%"><span class="zone-label">📦 交付区 · 总裁办公室</span></div>
+    <div class="office-zone" style="left:2%; top:5%; width:26%; height:90%; background:rgba(212,165,116,0.07)"></div>
+    <div class="facility" style="left:6%; top:11%">📺</div>
+    <div class="facility" style="left:23%; top:11%">☕</div>
+    <div class="facility" style="left:6%; top:27%">🛋️</div>
+    <div class="facility" style="left:23%; top:36%">🏓</div>
+    <div class="facility" style="left:6%; top:51%">🎮</div>
+    <div class="facility" style="left:23%; top:58%">🪴</div>
+    <div class="facility" style="left:6%; top:73%">🍜</div>
+    <div class="facility" style="left:23%; top:76%">🌿</div>
+    <div class="office-zone" style="left:31%; top:5%; width:38%; height:58%; background:rgba(108,142,239,0.07)"></div>
+    <div class="office-zone" style="left:72%; top:5%; width:26%; height:45%; background:rgba(240,160,75,0.07)"></div>
+    <div class="office-zone" style="left:31%; top:67%; width:38%; height:28%; background:rgba(154,120,196,0.07)"></div>
+    <div class="office-zone" style="left:72%; top:53%; width:26%; height:42%; background:rgba(74,196,160,0.07)"></div>
   </div>
 
   <!-- Leader 组 -->
@@ -1065,7 +1114,7 @@ const OfficeScene = (() => {
     // 状态徽章
     const badge = document.createElement('div');
     badge.className = 'bear-badge'; badge.textContent = '💤';
-    // 身体（呼吸容器）：头像 + 双腿
+    // 纸片小人身体：头（头像）+ 躯干（角色色）+ 双臂 + 双腿
     const body = document.createElement('div');
     body.className = 'bear-body';
     const sprite = document.createElement('div');
@@ -1073,12 +1122,17 @@ const OfficeScene = (() => {
     const img = document.createElement('img');
     img.src = role.img; img.alt = role.name; img.loading = 'lazy';
     sprite.appendChild(img);
+    const torso = document.createElement('div');
+    torso.className = 'bear-torso'; torso.style.background = role.color; // 角色主题色躯干
+    const armL = document.createElement('div'); armL.className = 'arm l'; armL.style.background = role.color;
+    const armR = document.createElement('div'); armR.className = 'arm r'; armR.style.background = role.color;
+    torso.appendChild(armL); torso.appendChild(armR);
     const legs = document.createElement('div');
     legs.className = 'bear-legs';
-    const legL = document.createElement('div'); legL.className = 'leg l'; legL.style.background = role.color; // 角色主题色
+    const legL = document.createElement('div'); legL.className = 'leg l'; legL.style.background = role.color;
     const legR = document.createElement('div'); legR.className = 'leg r'; legR.style.background = role.color;
     legs.appendChild(legL); legs.appendChild(legR);
-    body.appendChild(sprite); body.appendChild(legs);
+    body.appendChild(sprite); body.appendChild(torso); body.appendChild(legs);
     // 名牌
     const name = document.createElement('div');
     name.className = 'bear-name'; name.textContent = role.name;
@@ -1089,6 +1143,30 @@ const OfficeScene = (() => {
     });
     document.getElementById('officeStage').appendChild(el);
     return { el, bubble, badge, role, pos: null, status: 'idle', bubbleTimer: null, walkTimer: null, doneTimer: null, greetCooldown: {} };
+  }
+
+  // 生成办公桌（桌面+显示器），熊站在桌后似落座
+  function createDesk(x, y, opts = {}) {
+    const stage = document.getElementById('officeStage');
+    const d = document.createElement('div');
+    d.className = 'fdesk' + (opts.wide ? ' wide' : '');
+    d.style.left = x + '%'; d.style.top = y + '%';
+    if (opts.screen) d.setAttribute('data-screen', opts.screen);
+    d.insertAdjacentHTML('beforeend', '<div class="desk-top"></div><div class="desk-legbar"></div><div class="monitor"></div>');
+    const monitor = d.querySelector('.monitor');
+    if (opts.screen) monitor.style.background = opts.screen;
+    stage.appendChild(d);
+    return d;
+  }
+
+  // 生成大件 emoji 家具（货架/工作台等）
+  function createBigFurn(x, y, emoji) {
+    const stage = document.getElementById('officeStage');
+    const f = document.createElement('div');
+    f.className = 'bigfurn'; f.textContent = emoji;
+    f.style.left = x + '%'; f.style.top = y + '%';
+    stage.appendChild(f);
+    return f;
   }
 
   // 走到指定点位（带走路动画与朝向翻转）
@@ -1280,6 +1358,12 @@ const OfficeScene = (() => {
       }
     });
     let deskIdx = 0, verifyIdx = 0, idleIdx = 0, fixIdx = 0;
+    // 家具：工位桌×9（蓝屏）/ 验证桌×4（橙屏）/ 总裁桌（宽）/ 交付货架 / 修复工作台
+    DESKS.forEach(s => createDesk(s.x, s.y + 13));
+    VERIFY_SPOTS.forEach(s => createDesk(s.x, s.y + 13, { screen: '#8a5a20' }));
+    createDesk(CEO_DESK.x, CEO_DESK.y + 13, { wide: true, screen: '#4a6fa5' });
+    createBigFurn(DELIVERY_SPOT.x + 8, DELIVERY_SPOT.y + 8, '📦');
+    createBigFurn(50, 88, '🛠️');
     ROLES.forEach(role => {
       const bear = createBear(role);
       bears[role.id] = bear; // 注册进映射表，供 updateRole/speak/resetAll/celebrate 查找
