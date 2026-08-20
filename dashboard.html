@@ -608,6 +608,7 @@ body {
   object-position: center bottom;
   display: block;
   margin: 0 auto;
+  mix-blend-mode: multiply;
   filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
   transition: filter 0.3s;
 }
@@ -1100,7 +1101,6 @@ function initTransparentSprites() {
     return new Promise(function(resolve) {
       var src = r.sprite || r.img;
       var img = new Image();
-      img.crossOrigin = 'anonymous';
       img.onload = function() {
         var canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth;
