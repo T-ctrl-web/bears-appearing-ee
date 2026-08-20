@@ -508,12 +508,34 @@ body {
   font-size: 11px; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap;
 }
 
+/* 休息室娱乐设施 */
+.facility {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  background: rgba(45,53,72,0.92);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  z-index: 5;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .bear {
   position: absolute;
   width: 56px; margin-left: -28px; margin-top: -34px;
-  transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95);
+  transition: left 1.6s cubic-bezier(.45,.05,.55,.95), top 1.6s cubic-bezier(.45,.05,.55,.95), opacity .5s;
   z-index: 10; cursor: pointer; text-align: center; user-select: none;
 }
+
+/* 聚焦模式：任务执行期间，空闲角色降透明度，突出干活的人 */
+.bear.dimmed { opacity: 0.32; }
+.bear.dimmed:hover { opacity: 1; }
 .bear-sprite { transition: transform 0.25s; }
 .bear img {
   width: 44px; height: 44px; object-fit: cover; border-radius: 50%;
@@ -589,7 +611,15 @@ body {
 
   <!-- 办公室场景（MAVIS 风格走动交互） -->
   <div id="officeStage">
-    <div class="office-zone" style="left:2%; top:5%; width:26%; height:38%"><span class="zone-label">☕ 休息区</span></div>
+    <div class="office-zone" style="left:2%; top:5%; width:26%; height:90%"><span class="zone-label">☕ 员工休息室</span></div>
+    <div class="facility" style="left:4.5%; top:10%">📺 电视</div>
+    <div class="facility" style="left:21%; top:10%">☕ 咖啡机</div>
+    <div class="facility" style="left:4.5%; top:26%">🛋️ 沙发</div>
+    <div class="facility" style="left:21%; top:34%">🏓 乒乓球</div>
+    <div class="facility" style="left:4.5%; top:49%">🎮 街机</div>
+    <div class="facility" style="left:21%; top:56%">🪴 绿植</div>
+    <div class="facility" style="left:4.5%; top:71%">🍜 零食柜</div>
+    <div class="facility" style="left:21%; top:74%">🌿 盆栽</div>
     <div class="office-zone" style="left:31%; top:5%; width:38%; height:55%"><span class="zone-label">💻 工位区</span></div>
     <div class="office-zone" style="left:72%; top:5%; width:26%; height:42%"><span class="zone-label">🔍 验证区</span></div>
     <div class="office-zone" style="left:31%; top:64%; width:38%; height:31%"><span class="zone-label">🔧 修复区</span></div>
@@ -766,7 +796,7 @@ function addLog(roleId, message) {
   const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
   logs.push({ ts, roleId, tier, message });
   renderLogs();
-  OfficeScene.speak(roleId, message);
+  OfficeScene.announce(roleId, message); // 关键事件才冒泡，日常日志静默
 }
 
 function renderLogs() {
@@ -974,11 +1004,17 @@ const OfficeScene = (() => {
   const CEO_DESK = {x:85,y:60};
   const DELIVERY_SPOT = {x:81,y:82};
   const FIX_SPOTS = [{x:37,y:76},{x:50,y:80},{x:63,y:76},{x:44,y:88}];
+  // 休息室点位：围绕娱乐设施排布（沙发前看电视/咖啡机旁/乒乓球台/街机/零食柜/绿植边）
   const IDLE_SPOTS = [
-    {x:8,y:16},{x:17,y:12},{x:25,y:18},{x:9,y:30},{x:20,y:32},{x:15,y:23},
-    {x:9,y:58},{x:20,y:62},{x:6,y:90},{x:16,y:90},{x:27,y:30},{x:13,y:44},{x:24,y:50},{x:10,y:74},
+    {x:9,y:18},{x:16,y:19},{x:8,y:30},{x:15,y:30},   // 沙发区看电视
+    {x:23,y:17},{x:26,y:23},                          // 咖啡机旁
+    {x:20,y:39},{x:26,y:39},                          // 乒乓球台
+    {x:9,y:55},{x:13,y:58},                           // 街机
+    {x:9,y:77},{x:14,y:80},                           // 零食柜
+    {x:24,y:62},{x:23,y:80},                          // 绿植/盆栽边
+    {x:16,y:48},{x:17,y:90},                          // 散座
   ];
-  const GREETINGS = ['嗨！','忙啥呢？','加油！','嘿嘿~','喝咖啡吗？','辛苦啦！','今天状态不错'];
+  const GREETINGS = ['嗨！','忙啥呢？','加油！','嘿嘿~','这咖啡真香~','来局乒乓球？','追剧呢？','零食分我点~','辛苦啦！','今天状态不错'];
   const STATUS_CLASS = { idle:'idle', executing:'executing', waiting:'waiting', done:'done', failed:'failed' };
 
   let inited = false;
@@ -1044,15 +1080,51 @@ const OfficeScene = (() => {
     }
   }
 
-  // 说话气泡（textContent 防注入）
+  // 说话气泡（textContent 防注入；同时最多 3 个，超量自动收起最早的）
+  const activeBubbles = new Map(); // roleId → 显示时间戳
   function speak(roleId, message, duration = 3600) {
     const bear = bears[roleId];
     if (!bear || !message) return;
+    if (!activeBubbles.has(roleId) && activeBubbles.size >= 3) {
+      let oldestId = null, oldestTs = Infinity;
+      for (const [id, ts] of activeBubbles) if (ts < oldestTs) { oldestTs = ts; oldestId = id; }
+      if (oldestId && bears[oldestId]) {
+        clearTimeout(bears[oldestId].bubbleTimer);
+        bears[oldestId].bubble.classList.remove('show');
+        activeBubbles.delete(oldestId);
+      }
+    }
     const text = String(message);
     bear.bubble.textContent = text.length > 42 ? text.slice(0, 42) + '…' : text;
     bear.bubble.classList.add('show');
+    activeBubbles.set(roleId, Date.now());
     clearTimeout(bear.bubbleTimer);
-    bear.bubbleTimer = setTimeout(() => bear.bubble.classList.remove('show'), duration);
+    bear.bubbleTimer = setTimeout(() => {
+      bear.bubble.classList.remove('show');
+      activeBubbles.delete(roleId);
+    }, duration);
+  }
+
+  // 气泡分级降噪：仅关键事件冒泡（收到任务/评估/驳回/修复/完成/交付），日常状态流转静默
+  const KEY_EVENT_RE = /驳回|修复|完成|完毕|交付|放行|收到任务|评估|启动/;
+  const SILENT_RE = /状态转换|状态：/;
+  function announce(roleId, message) {
+    const msg = String(message || '');
+    if (!msg || SILENT_RE.test(msg) || !KEY_EVENT_RE.test(msg)) return;
+    speak(roleId, msg, 3200);
+  }
+
+  // 任务是否进行中（executing/waiting/failed/done 未收工都算）——驱动聚焦模式与环境安静
+  function taskActive() {
+    return Object.values(bears).some(b => b.status !== 'idle');
+  }
+
+  // 聚焦模式：任务执行期间空闲角色降透明度，突出正在干活的人
+  function refreshFocus() {
+    const active = taskActive();
+    for (const id in bears) {
+      bears[id].el.classList.toggle('dimmed', active && bears[id].status === 'idle');
+    }
   }
 
   function targetFor(bear, status) {
@@ -1078,19 +1150,25 @@ const OfficeScene = (() => {
     if (status === 'done') {
       place(bear, jitter(DELIVERY_SPOT, 6)); // 交付区聚集，带随机散布避免重叠
       bear.doneTimer = setTimeout(() => {
-        if (bear.status === 'done') place(bear, bear.idleSpot, { jitter: true });
+        if (bear.status === 'done') {
+          place(bear, bear.idleSpot, { jitter: true });
+          bear.status = 'idle'; // 交付完成回休息室（场景内部状态，卡片视图不受影响）
+          refreshFocus();
+        }
       }, 3200);
     } else {
       place(bear, targetFor(bear, status));
     }
+    refreshFocus();
   }
 
   function resetAll() {
+    activeBubbles.clear();
     for (const id in bears) {
       const bear = bears[id];
       bear.status = 'idle';
       Object.values(STATUS_CLASS).forEach(c => bear.el.classList.remove(c));
-      bear.el.classList.remove('walking', 'left');
+      bear.el.classList.remove('walking', 'left', 'dimmed');
       clearTimeout(bear.bubbleTimer); clearTimeout(bear.walkTimer); clearTimeout(bear.doneTimer);
       bear.bubble.classList.remove('show');
       place(bear, bear.idleSpot);
@@ -1104,26 +1182,28 @@ const OfficeScene = (() => {
     });
   }
 
-  // 闲逛：空闲的熊偶尔溜达换位置
+  // 闲逛：空闲的熊偶尔溜达（低频；任务执行期间保持安静，聚焦工作）
   setInterval(() => {
+    if (taskActive()) return;
     const idle = Object.values(bears).filter(b => b.status === 'idle');
-    if (idle.length && Math.random() < 0.5) {
+    if (idle.length && Math.random() < 0.35) {
       const bear = idle[Math.floor(Math.random() * idle.length)];
       place(bear, bear.idleSpot, { jitter: true });
     }
-  }, 5000);
+  }, 15000);
 
-  // 闲聊：两只空闲的熊随机搭话
+  // 闲聊：两只空闲的熊在休息室随机搭话（低频；任务执行期间不打扰）
   setInterval(() => {
+    if (taskActive()) return;
     const idle = Object.values(bears).filter(b => b.status === 'idle');
-    if (idle.length >= 2 && Math.random() < 0.6) {
+    if (idle.length >= 2 && Math.random() < 0.4) {
       const a = idle[Math.floor(Math.random() * idle.length)];
       const b = idle[Math.floor(Math.random() * idle.length)];
       if (a === b) return;
       speak(a.role.id, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], 2400);
       setTimeout(() => speak(b.role.id, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], 2400), 600);
     }
-  }, 8000);
+  }, 20000);
 
   function init() {
     if (inited) return;
@@ -1143,7 +1223,7 @@ const OfficeScene = (() => {
     });
   }
 
-  return { init, updateRole, speak, resetAll, celebrate };
+  return { init, updateRole, speak, announce, resetAll, celebrate };
 })();
 
 // 视图切换：卡片 ↔ 办公室场景
@@ -1248,7 +1328,7 @@ function applyServerState(s) {
     } else {
       const idx = s.logs.findIndex(l => l.id === lastSpokenLogId);
       const fresh = idx >= 0 ? s.logs.slice(idx + 1) : s.logs.slice(-3);
-      fresh.forEach(l => { if (l.roleId) OfficeScene.speak(l.roleId, l.message); });
+      fresh.forEach(l => { if (l.roleId) OfficeScene.announce(l.roleId, l.message); });
       lastSpokenLogId = s.logs[s.logs.length - 1].id || lastSpokenLogId;
     }
     logs = s.logs.map(l => {
