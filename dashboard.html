@@ -722,6 +722,8 @@ body {
       style="margin-left:8px;background:rgba(108,142,239,0.15);color:var(--accent);border:1px solid rgba(108,142,239,0.35);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">设置</button>
     <button id="openWorkspace" title="查看当前任务工作区产物"
       style="margin-left:4px;background:rgba(74,196,160,0.15);color:var(--accent2);border:1px solid rgba(74,196,160,0.35);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">工作区</button>
+    <button id="openDiscuss" title="让多个角色围坐自由讨论一个议题"
+      style="margin-left:4px;background:rgba(232,93,93,0.15);color:#f0a0a0;border:1px solid rgba(232,93,93,0.35);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">自由讨论</button>
     <button id="openQueue" title="任务队列"
       style="margin-left:4px;background:rgba(240,160,75,0.15);color:var(--warn);border:1px solid rgba(240,160,75,0.35);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:none;">排队 0</button>
   </div>
@@ -1728,6 +1730,31 @@ updateProgress(0, 0);
     <div id="queueList" style="flex:1;overflow:auto;"></div>
   </div>
 </div>
+<!-- 自由讨论面板 -->
+<div id="discussModal" style="display:none;position:fixed;inset:0;background:rgba(8,10,16,0.6);z-index:996;align-items:center;justify-content:center;">
+  <div style="width:min(760px,92vw);max-height:86vh;display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--rule);border-radius:12px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:600;color:var(--ink);">自由讨论 · 熊大主持召开</div>
+      <span id="discussClose" style="cursor:pointer;color:var(--muted);font-size:18px;">✕</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <input id="discussTopic" type="text" placeholder="输入讨论议题，例如：要不要引入微前端？" autocomplete="off"
+        style="flex:1;background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:13px;" />
+      <button id="discussStart"
+        style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;">开始讨论</button>
+    </div>
+    <div id="discussParticipants" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <span style="color:var(--muted);font-size:13px;align-self:center;">参会角色：</span>
+      <span id="discussSel"></span>
+    </div>
+    <div id="discussStatus" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>
+    <div id="discussTranscript" style="flex:1;overflow:auto;background:var(--bg3);border-radius:8px;padding:12px;font-size:13px;line-height:1.6;color:var(--ink);"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end;">
+      <button id="discussStop"
+        style="background:var(--bg3);color:var(--danger);border:1px solid var(--rule);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;">停止</button>
+    </div>
+  </div>
+</div>
 </body>
 <script>
 (function () {
@@ -1894,6 +1921,101 @@ updateProgress(0, 0);
   document.getElementById('wsOpenFolder').addEventListener('click', async () => {
     try { await fetch('/api/workspace/open', { method: 'POST' }); } catch (e) { /* 忽略 */ }
   });
+})();
+// 自由讨论面板
+(function () {
+  const modal = document.getElementById('discussModal');
+  const selEl = document.getElementById('discussSel');
+  const transcriptEl = document.getElementById('discussTranscript');
+  const statusEl = document.getElementById('discussStatus');
+  const topicEl = document.getElementById('discussTopic');
+  const selected = new Set(); // 参会角色 id
+  const DEFAULT_SEL = ['guangtouqiang', 'xionger', 'jiji', 'cuihua'];
+  const roles = [
+    { id: 'guangtouqiang', name: '光头强', role: '架构' },
+    { id: 'xionger', name: '熊二', role: '开发' },
+    { id: 'bengbeng', name: '蹦蹦', role: '测试' },
+    { id: 'luobotou', name: '萝卜头', role: '调试' },
+    { id: 'feibo', name: '肥波', role: '文档' },
+    { id: 'cuihua', name: '翠花', role: '界面' },
+    { id: 'tutu', name: '涂涂', role: '视觉' },
+    { id: 'maomao', name: '毛毛', role: '调研' },
+    { id: 'jiji', name: '吉吉国王', role: '质检' },
+    { id: 'laoe', name: '老鳄', role: '设计审查' },
+    { id: 'tiezhang', name: '铁掌大师', role: '安全' },
+  ];
+  let pollTimer = null;
+
+  function renderSel() {
+    selEl.innerHTML = '';
+    roles.forEach(r => {
+      const c = document.createElement('label');
+      c.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-right:4px;font-size:12px;color:var(--ink);cursor:pointer;background:var(--bg3);border:1px solid var(--rule);border-radius:999px;padding:3px 8px;';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = r.id; cb.checked = selected.has(r.id);
+      cb.style.cssText = 'width:13px;height:13px;cursor:pointer;';
+      cb.onchange = () => { if (cb.checked) selected.add(r.id); else selected.delete(r.id); };
+      c.appendChild(cb); c.appendChild(document.createTextNode(r.name));
+      selEl.appendChild(c);
+    });
+  }
+
+  function renderTranscript(t) {
+    if (!t || !t.length) { transcriptEl.innerHTML = '<div style="color:var(--muted);">（输入议题后点击开始，角色们将围坐自由讨论）</div>'; return; }
+    transcriptEl.innerHTML = t.map(m => {
+      const tag = m.summary ? '🥇 ' : '';
+      return '<div style="margin-bottom:8px;"><b style="color:' + (m.summary ? 'var(--warn)' : '#f0a0a0') + ';">' + tag + escapeHTML(m.name) + '</b>：' + escapeHTML(m.text) + '</div>';
+    }).join('');
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  }
+
+  function escapeHTML(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+  async function poll() {
+    try {
+      const d = await (await fetch('/api/discuss/status')).json();
+      if (d.running) {
+        renderTranscript(d.transcript);
+        statusEl.textContent = '讨论中… 第 ' + d.round + '/' + d.maxRounds + ' 轮（' + d.participants.map(p=>p.name).join('、') + '）';
+      } else {
+        statusEl.textContent = '（当前无讨论）';
+        if (d.transcript && d.transcript.length) renderTranscript(d.transcript);
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      }
+    } catch (e) { statusEl.textContent = '读取讨论状态失败'; }
+  }
+
+  function open() {
+    modal.style.display = 'flex';
+    if (!selected.size) DEFAULT_SEL.forEach(id => selected.add(id));
+    renderSel();
+    poll();
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(poll, 1500);
+  }
+  function close() { modal.style.display = 'none'; if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  document.getElementById('openDiscuss').addEventListener('click', open);
+  document.getElementById('discussClose').addEventListener('click', close);
+  document.getElementById('discussStop').addEventListener('click', async () => {
+    try { await fetch('/api/discuss/stop', { method: 'POST' }); statusEl.textContent = '已请求停止'; } catch (e) {}
+  });
+  document.getElementById('discussStart').addEventListener('click', async () => {
+    const topic = topicEl.value.trim();
+    if (!topic) { statusEl.textContent = '请先输入议题'; return; }
+    const body = { topic, participants: Array.from(selected), maxRounds: document.body.dataset.discussRounds || 2 };
+    try {
+      const r = await fetch('/api/discuss/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (!r.ok) { statusEl.textContent = d.error || '启动失败'; return; }
+      topicEl.value = '';
+      renderTranscript([]);
+      poll();
+    } catch (e) { statusEl.textContent = '启动失败'; }
+  });
+
+  // 兼容 worker 侧可能存在的 maxRounds 配置（写死 2 轮，简洁）
+  document.body.dataset.discussRounds = '2';
 })();
 </script>
 </html>

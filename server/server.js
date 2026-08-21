@@ -25,9 +25,12 @@ const {
 const { TeamRunner, getWorkspaceRoot } = require('../engine/team-runner');
 const { HarnessAdapter } = require('../engine/harness-adapter');
 const { ToolExecutor } = require('../engine/tool-executor');
+const { DiscussionEngine } = require('../engine/discussion-engine');
 const settings = require('./settings');
 const harness = new HarnessAdapter();
 const runner = new TeamRunner({ getState, addLog, resetTask, startTask, setRoleStatus, addWave, setWaveStatus, completeTask, ROLES }, { harness });
+// 自由讨论引擎：与任务状态机并行的"开会"，通过 addLog 播报到看板气泡
+const discussion = new DiscussionEngine({ harness, addLog, ROLES });
 
 const sseClients = new Set();
 
@@ -437,6 +440,27 @@ const server = http.createServer(async (req, res) => {
       spawn(opener, [ws], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
       sendJson(res, 200, { ok: true, path: ws });
     } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  // === 自由讨论 API（与任务闭环并行） ===
+  if (p === '/api/discuss/start' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      if (discussion.isRunning()) { sendJson(res, 400, { error: '已有一场讨论在进行中' }); return; }
+      const meta = discussion.start({ topic: body.topic, participants: body.participants, maxRounds: body.maxRounds });
+      discussion.run(); // 异步跑，不阻塞响应
+      sendJson(res, 200, { ok: true, ...meta });
+    } catch (e) { sendJson(res, 400, { error: e.message }); }
+    return;
+  }
+  if (p === '/api/discuss/status' && req.method === 'GET') {
+    sendJson(res, 200, discussion.status());
+    return;
+  }
+  if (p === '/api/discuss/stop' && req.method === 'POST') {
+    discussion.stop();
+    sendJson(res, 200, { ok: true });
     return;
   }
 
