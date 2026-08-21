@@ -197,6 +197,12 @@ function fakeHarness(opts = {}) {
   let verifyCalls = 0;
   const h = {
     config: { engine: 'mock' },
+    // 成本护栏模拟：可覆盖 token 用量与预算
+    tokenUsage: { total: opts.taskTokens || 0 },
+    sessionUsage: { total: opts.sessionTokens || 0 },
+    get tokenBudget() {
+      return { perTask: opts.perTask || 500000, perSession: opts.perSession || 2000000, onExceed: 'pause' };
+    },
     async executeWorker({ roleId, task }) {
       if (opts.workerFail) {
         return { roleId, assignee: roleId, engine: 'mock', status: 'failed', output: null, duration_ms: 1, error: 'API 500: boom' };
@@ -300,17 +306,32 @@ test('审查闭环：持续驳回达迭代上限 → FAILED（有界）', async 
   assert.equal(r.currentTask.status, 'failed');
 });
 
-test('审查闭环：审查 API 失败默认拒绝防放行', async () => {
+test('审查闭环：token 超过 per_task 返工护栏 → 拦停返工转 FAILED', async () => {
+  // 任务级已烧远超 per_task 的 70%（护栏阈值），驳回时不再返工
+  const r = new TeamRunner(stateModule, { harness: fakeHarness({ reject: 'always', taskTokens: 500000, perTask: 500000 }) });
+  r.reset();
+  r.startTask({ requirement: '跨模块重构', complexity: 'complex', autoExecute: true });
+  r.completeDrafting();
+  r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: '重构' });
+  await waitState(r, ['FAILED']);
+  assert.equal(r.currentState, 'FAILED');
+  const logs = stateModule.getState().logs;
+  assert.ok(logs.some(l => /护栏拦停返工/.test(l.message)), '应有护栏拦停日志');
+});
+
+test('审查闭环：审查 API 失败 → 转人工复核，防误放行也不烧钱返工', async () => {
   const r = new TeamRunner(stateModule, { harness: fakeHarness({ verifierError: true }) });
   r.reset();
   r.startTask({ requirement: '开发功能', complexity: 'complex', autoExecute: true });
   r.completeDrafting();
   r.dispatchWave(0, { name: 'w1', roles: ['xionger'], task: 'x' });
-  await waitState(r, ['COMPLETED', 'FAILED']);
-  // 审查调用失败 → 默认拒绝 → 迭代重跑 → 超限 FAILED
-  assert.equal(r.currentState, 'FAILED');
+  // 审查调用失败：暂停自动流转，等待人工决策（不再默认拒绝返工烧钱）
+  await waitState(r, ['VERIFYING']);
+  assert.equal(r.ctx.task.status, 'awaiting_human');
+  assert.equal(r.currentState, 'VERIFYING');
   const logs = stateModule.getState().logs;
-  assert.ok(logs.some(l => l.level === 'error' && /审查调用失败/.test(l.message)), '应有审查失败日志');
+  assert.ok(logs.some(l => /审查调用失败/.test(l.message)), '应有审查失败日志');
+  // 人工可继续：放行或驳回由外部接口触发
 });
 
 test('审查闭环：多波次流水线（验证通过自动派发下一波）', async () => {

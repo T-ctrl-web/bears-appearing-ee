@@ -200,6 +200,18 @@ const server = http.createServer(async (req, res) => {
         next.workspace_root = ''; // 显式清空 = 恢复默认目录
       }
     }
+    // 项目目录：指向真实仓库，Worker 直接在该项目内改代码/跑测试
+    if (typeof body.project_root === 'string') {
+      const pr = body.project_root.trim();
+      if (pr && path.isAbsolute(pr)) {
+        try {
+          fs.mkdirSync(pr, { recursive: true });
+          next.project_root = pr;
+        } catch (e) { sendJson(res, 400, { error: `项目目录不可访问：${e.message}` }); return; }
+      } else {
+        next.project_root = ''; // 显式清空 = 恢复隔离工作区模式
+      }
+    }
     settings.saveUserSettings(next);
     harness.applyUserSettings();
     sendJson(res, 200, { ok: true, harness: harness.engineStatus });
@@ -272,6 +284,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/sm/start' && req.method === 'POST') {
     const body = await readBody(req);
     try {
+      // 若未显式指定项目目录，注入用户设置的 project_root（接管真实项目）
+      if (!body.project_root) {
+        const savedPr = String(settings.loadUserSettings().project_root || '').trim();
+        if (savedPr) body.project_root = savedPr;
+      }
       if (body.autoExecute !== false) {
         // 全自动模式：忙碌时自动入队（支持 P0/P1/P2 优先级），闲时直接启动并派发默认波次
         const r = startOrQueue(body, body.priority);

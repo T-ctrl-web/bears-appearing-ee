@@ -1676,7 +1676,16 @@ updateProgress(0, 0);
       <label for="settingsAllowCmd" style="color:var(--muted);font-size:13px;cursor:pointer;">允许执行 node 命令（Worker/Verifier 可真实运行工作区脚本做自检，默认关闭）</label>
     </div>
     <div style="margin-bottom:18px;">
-      <label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px;">工作区目录（任务产出文件的写入位置，需绝对路径，留空用默认；对下一个任务生效）</label>
+      <label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px;">项目目录（真实仓库路径，Worker 直接在这里改代码/跑测试；留空则改写到下面的工作区目录；对下一个任务生效）</label>
+      <div style="display:flex;gap:8px;">
+        <input id="settingsProjectRoot" type="text" placeholder="例如 D:\my-project（可留空=隔离工作区）" autocomplete="off"
+          style="flex:1;background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:13px;" />
+        <button id="settingsPrBrowse" title="弹出系统对话框选择你的项目文件夹"
+          style="background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;white-space:nowrap;">📁 选择</button>
+      </div>
+    </div>
+    <div style="margin-bottom:18px;">
+      <label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px;">工作区目录（未设项目目录时，产出写入这里，需绝对路径，留空用默认；对下一个任务生效）</label>
       <div style="display:flex;gap:8px;">
         <input id="settingsWsRoot" type="text" placeholder="例如 D:\mavis-workspaces" autocomplete="off"
           style="flex:1;background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:13px;" />
@@ -1734,6 +1743,7 @@ updateProgress(0, 0);
       const d = await r.json();
       if (d.saved && d.saved.api_key) keyInput.value = d.saved.api_key;
       if (d.saved && d.saved.model) modelInput.value = d.saved.model;
+      document.getElementById('settingsProjectRoot').value = (d.saved && d.saved.project_root) || '';
       document.getElementById('settingsWsRoot').value = (d.saved && d.saved.workspace_root) || '';
       document.getElementById('settingsAllowCmd').checked = !!(d.saved && d.saved.allow_commands);
       statusEl.textContent = '引擎：' + (d.harness && d.harness.engine === 'mock' ? '演示模式（未配置 Key）' : '真实 LLM（' + (d.harness && d.harness.model) + '）');
@@ -1744,6 +1754,7 @@ updateProgress(0, 0);
       api_key: keyInput.value.trim(),
       model: modelInput.value.trim(),
       allow_commands: document.getElementById('settingsAllowCmd').checked,
+      project_root: document.getElementById('settingsProjectRoot').value.trim(),
       workspace_root: document.getElementById('settingsWsRoot').value.trim(),
     };
     try {
@@ -1753,27 +1764,25 @@ updateProgress(0, 0);
       else statusEl.textContent = d.error || '保存失败';
     } catch (e) { statusEl.textContent = '保存失败'; }
   }
-  document.getElementById('settingsWsBrowse').addEventListener('click', async () => {
+  async function browseFolder(targetInput) {
     try {
       if (window.mavis && window.mavis.selectFolder) {
         // 桌面版：调用 Electron 原生目录选择对话框
         const dir = await window.mavis.selectFolder();
-        if (dir) document.getElementById('settingsWsRoot').value = dir;
+        if (dir) document.getElementById(targetInput).value = dir;
       } else if (window.showDirectoryPicker) {
-        // 浏览器（Chrome）：原生目录选择器
+        // 浏览器（Chrome）：原生目录选择器（拿不到绝对路径，提示手动填写）
         try {
-          const h = await window.showDirectoryPicker();
-          const hd = await h.getDirectoryHandle ? h.getDirectoryHandle('/') : null;
-          if (h && h.name && hd === null) {
-            // 浏览器沙箱拿不到绝对路径，提示手动填写
-            statusEl.textContent = '浏览器下无法获取绝对路径，请手动填写工作区目录，或使用桌面版一键选择';
-          }
+          await window.showDirectoryPicker();
+          statusEl.textContent = '浏览器下无法获取绝对路径，请手动填写目录，或使用桌面版一键选择';
         } catch (e) { if (e.name !== 'AbortError') statusEl.textContent = '选择取消'; }
       } else {
         statusEl.textContent = '此环境不支持目录选择，请手动填写绝对路径，或使用桌面版';
       }
     } catch (e) { statusEl.textContent = '选择失败'; }
-  });
+  }
+  document.getElementById('settingsWsBrowse').addEventListener('click', () => browseFolder('settingsWsRoot'));
+  document.getElementById('settingsPrBrowse').addEventListener('click', () => browseFolder('settingsProjectRoot'));
   document.getElementById('openSettings').addEventListener('click', open);
   document.getElementById('settingsClose').addEventListener('click', close);
   document.getElementById('settingsSave').addEventListener('click', save);

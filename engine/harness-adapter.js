@@ -133,46 +133,65 @@ function buildVerifierUserPrompt({ task, outputs, iteration, maxIterations }) {
     `## 待审查任务\n${task || '（未提供任务描述）'}`,
     `## Worker 产出\n${outputsText}`,
     `## 迭代轮次\n第 ${iteration} 轮（最多 ${maxIterations} 轮，超限终审失败）`,
-    '## 输出要求\n先简要给出审查意见（按你的角色风格），最后必须单独一行输出合法 JSON 作为最终结论：\n{"passed": false, "issues": ["问题1", "问题2"], "verdict": "一句话结论"}\npassed=true 表示通过放行；passed=false 表示驳回重跑。issues 为发现的问题列表（通过时可为空数组）。\n贴合性是硬性条件：只要产出与任务无关、明显跑题、或未覆盖任务的核心要求，passed 就必须为 false，且 issues 里第一个问题必须以\u201c跑题\u201d标注。',
+    '## 输出要求\n先简要给出审查意见（按你的角色风格），然后空一行后，把最终结论放进一个 JSON 代码块（用 ```json 和 ``` 包裹，块内只能有合法 JSON，不允许任何解释文字）：\n```json\n{"passed": false, "issues": ["问题1"], "verdict": "一句话结论"}\n```\npassed=true 表示通过放行；passed=false 表示驳回重跑。verdict 用一句话概括结论。\n贴合性是硬性条件：只要产出与任务无关、明显跑题、或未覆盖任务的核心要求，passed 就必须为 false，且 issues 里第一个问题必须精确以\u201c跑题\u201d开头。\n格式错误、只给一句话不按 JSON 输出，会被视为无法解析，需要人工复核，请务必严格按 JSON 代码块输出。',
   ].join('\n\n');
 }
 
+/**
+ * 归一化已成功解析的结论对象。pass 判定兼容 {true/false/'true'/'false'}。
+ * 缺失/非法类型一律视为 false（不通过），避免通过/驳回被类型坑到。
+ */
 function normalizeVerdict(o) {
+  const passVal = o ? o.passed : undefined;
+  const passed = passVal === true || passVal === 'true';
+  const issues = Array.isArray(o.issues)
+    ? o.issues.filter(x => x != null).map(String)
+    : (o.issues == null ? [] : [String(o.issues)]);
   return {
-    passed: o.passed === true || o.passed === 'true',
-    issues: Array.isArray(o.issues) ? o.issues.map(String) : [],
+    passed,
+    issues,
     verdict: o.verdict != null ? String(o.verdict) : '',
     parsed: true,
+    needsHuman: false,
   };
 }
 
 /**
- * 从 LLM 审查回复中稳健解析结论：
- *   1) 逐个尝试文本中的扁平 JSON 对象（取最后一个含 passed 的）
- *   2) 宽松截取首个 { 到末尾 } 的片段（允许 issues 含嵌套）
- *   3) 关键词回退（驳回/不通过 → false；通过/放行 → true）
- * 4) 均失败 → 默认拒绝并标记 parsed:false（宁可误杀不可放行）
+ * 从 LLM 审查回复中稳健解析结论（结构化优先，替代脆弱正则）：
+ *   1) 优先抽取被 ```json ... ``` 代码块包裹的 JSON（唯一可信来源）
+ *   2) 兜底找首个含 "passed" 的扁平 JSON 对象（兼容老模型不输出代码块）
+ *   3) 均失败 → 不猜结论，保留原文，标记 needsHuman（交给人工复核，避免误判通过放漏 / 误判驳回烧钱）
  */
 function parseVerdict(text) {
   const s = String(text || '');
+
+  // 1) JSON 代码块：```json ... ``` 或 ``` ... ```
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) {
+    try {
+      const obj = JSON.parse(fence[1].trim());
+      if (obj && 'passed' in obj) return normalizeVerdict(obj);
+    } catch { /* 落到下一步 */ }
+  }
+
+  // 2) 兜底：取最后一个含 "passed" 的扁平 JSON 对象
   const flats = s.match(/\{[^{}]*\}/g) || [];
   for (let i = flats.length - 1; i >= 0; i--) {
     try {
-      const o = JSON.parse(flats[i]);
-      if ('passed' in o) return normalizeVerdict(o);
+      const obj = JSON.parse(flats[i]);
+      if (obj && 'passed' in obj) return normalizeVerdict(obj);
     } catch { /* 尝试下一个 */ }
   }
-  const m = s.match(/\{[\s\S]*"passed"[\s\S]*\}/);
-  if (m) {
-    try { return normalizeVerdict(JSON.parse(m[0])); } catch { /* 落入关键词回退 */ }
-  }
-  if (/(驳回|不通过|不予放行|不达标|failed)/i.test(s)) {
-    return { passed: false, issues: ['（关键词判定：驳回）'], verdict: '关键词判定：驳回', parsed: false };
-  }
-  if (/(通过|放行|passed)/i.test(s)) {
-    return { passed: true, issues: [], verdict: '关键词判定：通过', parsed: false };
-  }
-  return { passed: false, issues: ['无法解析审查结论，默认拒绝（需人工确认）'], verdict: '无法解析审查结论，默认拒绝', parsed: false };
+
+  // 3) 无法结构化解构：不猜，交给人工
+  return {
+    passed: null,
+    issues: [],
+    verdict: '无法解析审查结论，需人工复核',
+    parsed: false,
+    needsHuman: true,
+    raw: s,
+  };
 }
 
 /**
@@ -487,7 +506,9 @@ class HarnessAdapter {
         if (files.length) treeNote = files.map(p => `- ${p}`).join('\n');
       } catch { /* 保持默认 */ }
       const sys = buildVerifierSystemPrompt(roleInfo, levelRules) + '\n\n' + workspaceRulesVerifier({ allowCommands });
-      const user = `## 工作区文件清单\n${treeNote}\n\n` + buildVerifierUserPrompt({ task, outputs, iteration, maxIterations });
+      const user = `## 工作区文件清单\n${treeNote}\n\n`
+        + `审查时请结合这些真实文件。只要给出驳回结论，issues 里的每条问题请尽量以「文件路径: 描述」形式定位到具体文件，便于回传修复。\n\n`
+        + buildVerifierUserPrompt({ task, outputs, iteration, maxIterations });
       const r = await this._chatWithTools(sys, user, verifierId, buildVerifierTools({ allowCommands }), executor);
       if (!r.ok) {
         return { ...base, status: 'failed', passed: null, issues: [], verdict: '', raw: null, parsed: false, error: r.error, duration_ms: r.duration_ms };
@@ -507,4 +528,4 @@ class HarnessAdapter {
   }
 }
 
-module.exports = { HarnessAdapter, mapLimit };
+module.exports = { HarnessAdapter, mapLimit, parseVerdict, normalizeVerdict };

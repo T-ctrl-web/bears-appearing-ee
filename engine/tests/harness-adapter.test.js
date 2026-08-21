@@ -7,7 +7,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { HarnessAdapter, mapLimit } = require('../harness-adapter');
+const { HarnessAdapter, mapLimit, parseVerdict, normalizeVerdict } = require('../harness-adapter');
 
 const REAL_FETCH = global.fetch;
 function withMockFetch(mock, fn) {
@@ -296,7 +296,7 @@ test('deepseek 审查：代码块包裹的 JSON 也能解析', withMockFetch(
   }
 ));
 
-test('deepseek 审查：无 JSON 时关键词回退（驳回 → false）', withMockFetch(
+test('deepseek 审查：无结构化 JSON → 转人工复核而非关键词猜判定', withMockFetch(
   async () => ({
     ok: true,
     json: async () => ({ choices: [{ message: { content: '安全问题严重，驳回重跑！' } }] }),
@@ -304,10 +304,61 @@ test('deepseek 审查：无 JSON 时关键词回退（驳回 → false）', with
   async () => {
     const a = new HarnessAdapter({ apiKey: 'sk-test' });
     const r = await a.executeVerifier({ verifierId: 'tiezhang', outputs: { xionger: 'x' } });
-    assert.equal(r.passed, false);
+    assert.equal(r.status, 'success');
+    assert.equal(r.passed, null);      // 不再关键词猜 mock 判定
     assert.equal(r.parsed, false);
+    assert.equal(r.needsHuman, true);  // 转人工复核
   }
 ));
+
+// === parseVerdict 结构化解析单元测试 ===
+
+test('parseVerdict：JSON 代码块 → 正常解析', () => {
+  const r = parseVerdict('审查完毕。\n```json\n{"passed": false, "issues": ["跑题：产出是游戏逻辑而非口号", "缺测试"], "verdict": "驳回重跑"}\n```');
+  assert.equal(r.passed, false);
+  assert.equal(r.parsed, true);
+  assert.equal(r.needsHuman, false);
+  assert.deepEqual(r.issues, ['跑题：产出是游戏逻辑而非口号', '缺测试']);
+  assert.equal(r.verdict, '驳回重跑');
+});
+
+test('parseVerdict：代码块 JSON 通过', () => {
+  const r = parseVerdict('```json\n{"passed": true, "issues": [], "verdict": "放行"}\n```');
+  assert.equal(r.passed, true);
+  assert.equal(r.parsed, true);
+});
+
+test('parseVerdict：passed 为字符串 "false" 正确解析为 false', () => {
+  const r = parseVerdict('```json\n{"passed": "false", "issues": ["a"], "verdict": "驳回"}\n```');
+  assert.equal(r.passed, false);
+  assert.equal(r.parsed, true);
+});
+
+test('parseVerdict：无 JSON 且有驳回关键词 → needsHuman，不猜判定', () => {
+  const r = parseVerdict('这个方案完全不行，存在严重安全问题，必须驳回重跑！');
+  assert.equal(r.passed, null);
+  assert.equal(r.parsed, false);
+  assert.equal(r.needsHuman, true);
+  assert.equal(r.verdict, '无法解析审查结论，需人工复核');
+});
+
+test('parseVerdict：空串 → needsHuman', () => {
+  const r = parseVerdict('');
+  assert.equal(r.passed, null);
+  assert.equal(r.needsHuman, true);
+});
+
+test('parseVerdict：flat JSON 兜底解析', () => {
+  const r = parseVerdict('结论：{"passed": false, "issues": ["缺边界处理"], "verdict": "驳回"}');
+  assert.equal(r.passed, false);
+  assert.equal(r.parsed, true);
+  assert.deepEqual(r.issues, ['缺边界处理']);
+});
+
+test('parseVerdict：嵌套/损坏 JSON → needsHuman，不误读', () => {
+  const r = parseVerdict('前文 {broken json} 后文 {"passed": true}');
+  assert.equal(r.passed, true); // 仍能兜底到含 passed 的扁平对象
+});
 
 test('deepseek 审查：API 错误 → status failed', withMockFetch(
   async () => ({ ok: false, status: 500, text: async () => 'boom' }),

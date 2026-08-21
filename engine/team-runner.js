@@ -42,6 +42,16 @@ function getWorkspaceRoot() {
 }
 
 function createWorkspace(taskInfo) {
+  // 接管真实项目：配置了 project_root（绝对路径）→ 直接在该项目内工作，不建隔离临时目录
+  const pr = String(taskInfo.project_root || '').trim();
+  if (pr && path.isAbsolute(pr)) {
+    try {
+      fs.mkdirSync(pr, { recursive: true });
+      return pr;
+    } catch (e) {
+      console.warn(`[createWorkspace] project_root 不可用：${e.message}`);
+    }
+  }
   const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   const rand = Math.random().toString(36).slice(2, 6);
   const slug = String(taskInfo.title || taskInfo.requirement || 'task')
@@ -51,17 +61,25 @@ function createWorkspace(taskInfo) {
   return dir;
 }
 
+// 遍历时跳过的大目录（尤其接管真实项目时，避免 node_modules/.git 爆炸）
+const WORKSPACE_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.venv', '__pycache__', 'coverage']);
+// 遍历最大深度（真实项目可能很深，防止栈溢出/超时）
+const WORKSPACE_MAX_DEPTH = 8;
+
 function listWorkspaceFiles(dir, limit = 200) {
   try {
     const out = [];
-    const walk = (d, prefix) => {
+    const walk = (d, prefix, depth = 0) => {
+      if (depth > WORKSPACE_MAX_DEPTH) return;
       for (const name of fs.readdirSync(d).sort()) {
         if (out.length >= limit) return;
+        if (WORKSPACE_SKIP_DIRS.has(name)) continue;
         const full = path.join(d, name);
         const rel = prefix ? `${prefix}/${name}` : name;
-        const st = fs.statSync(full);
+        let st;
+        try { st = fs.statSync(full); } catch { continue; }
         out.push(st.isDirectory() ? `${rel}/` : rel);
-        if (st.isDirectory()) walk(full, rel);
+        if (st.isDirectory()) walk(full, rel, depth + 1);
       }
     };
     walk(dir, '');
@@ -256,7 +274,14 @@ class TeamRunner {
       || { medium: 'jiji', complex: 'laoe' }[t.complexity]
       || this.ctx.currentVerifier
       || 'jiji';
-    return { level, verifierId };
+    // 返工硬上限：取该 level 配置的 max_iterations（L1=1/L2=2/L3=3），
+    // 兜底 3。作为该任务的 maxIterations，返工超过即终审失败，防无限烧钱。
+    const cfgMax = Number(this.harness?.verificationRules?.levels?.[level]?.max_iterations);
+    const maxIterations = Number.isFinite(cfgMax) && cfgMax >= 1
+      ? cfgMax
+      : (t.max_iterations || 3);
+    if (maxIterations !== this.ctx.maxIterations) this.ctx.maxIterations = maxIterations;
+    return { level, verifierId, maxIterations };
   }
 
   /**
@@ -285,22 +310,28 @@ class TeamRunner {
       });
       if (!this.ctx || this.currentState === 'IDLE') return verdict; // 任务已被重置，丢弃过期结论
 
-      // 审查调用本身失败：默认拒绝，记录错误，升级用户决策
+      // 判定通过：区分三种情况
+      //   审查调用失败(status='failed')      → 不默认驳回，转人工复核（避免烧钱重跑）
+      //   结论无法解析(needsHuman)          → 保留原文转人工复核（不再靠关键词猜）
+      //   正常结论(passed: true/false)     → 走自动化通过/驳回
       let passed;
       if (verdict.status === 'failed') {
-        passed = false;
-        this.ctx.log('error', `审查调用失败，默认拒绝（${verdict.error}）。需人工确认是否放行`, verifierId);
+        passed = null;
+        this.ctx.log('error', `审查调用失败（${verdict.error}）。已暂停自动流转，需人工确认`, verifierId);
+      } else if (verdict.needsHuman || verdict.passed === null || verdict.passed === undefined) {
+        passed = null;
+        this.ctx.log('error', `审查结论无法解析，已暂停自动流转，需人工复核（原文见验证记录）`, verifierId);
       } else {
         passed = verdict.passed;
       }
 
-      // L1 柔性审查：问题记录为建议，但不强制驳回（可配置）
+      // L1 柔性审查：仅对已解析且有明确结论时才可做 enforce_reject 软化
       const l1Config = this.harness?.verificationRules?.levels?.level_1 || {};
       const l1Enforce = l1Config.enforce_reject !== false;
-      if (!passed && level === 'level_1' && verdict.status !== 'failed' && !l1Enforce) {
+      if (passed === false && level === 'level_1' && verdict.status !== 'failed' && !verdict.needsHuman && !l1Enforce) {
         passed = true;
         this.ctx.log('info', `L1 柔性审查：${(verdict.issues || []).length}条问题仅作建议，不驳回（enforce_reject=false）`, verifierId);
-      } else if (!passed && level === 'level_1' && verdict.status !== 'failed' && l1Enforce) {
+      } else if (passed === false && level === 'level_1' && verdict.status !== 'failed' && !verdict.needsHuman && l1Enforce) {
         this.ctx.log('warn', `L1 审查驳回：${(verdict.issues || []).length}条问题`, verifierId);
       }
 
@@ -308,8 +339,20 @@ class TeamRunner {
         verifierId, level, passed,
         issues: verdict.issues || [],
         verdict: verdict.verdict || '',
+        raw: verdict.raw || '',
+        parsed: verdict.parsed != null ? verdict.parsed : true,
+        needsHuman: verdict.needsHuman === true || verdict.status === 'failed',
         iteration: this.ctx.iterationCount + 1,
       };
+
+      // passed 为 null（待人工）：置为 awaiting_human，暂停自动返工/交付，
+      // 并把 verifier 角色标为待人工，等待外部接口触发人工放行/驳回
+      if (passed === null) {
+        this.sm.setRoleStatus(verifierId, 'WAITING', '结论需人工复核');
+        this.ctx.task.status = 'awaiting_human';
+        this.ctx.log('error', '验证结论不清，任务已置为 awaiting_human：请人工确认后调用放行/驳回接口继续', 'xiongda');
+        return verdict;
+      }
 
       if (passed) {
         const nextIndex = this.ctx.currentWave + 1;
@@ -327,15 +370,33 @@ class TeamRunner {
           this.deliver(this._aggregateOutputs());
         }
       } else {
+        // 返工护栏：返工前先做护栏检查，满足任一硬顶则不再烧钱返工，直接终审失败
+        const guard = this._reworkGuard(level, verdict.issues || []);
+        if (guard) {
+          this.completeVerification(false, verdict.issues || []);
+          if (this.currentState === 'ITERATING') {
+            this.ctx.log('error', `护栏拦停返工：${guard}。任务终审失败`, 'xiongda');
+            try { this.machine.transition('FAILED'); } catch { /* 未处于可失败状态则由迭代超限兜底 */ }
+          }
+          return verdict;
+        }
         this.completeVerification(false, verdict.issues || []);
-        // 自动驳回重跑：萝卜头修复后重派当前波次（携带驳回问题）
+        // 自动驳回重跑：携带命中项（含文件位置）+ 当前返工轮次，Worker 只修命中项，不推倒重来
         if (this.currentState === 'ITERATING') {
           this.completeIteration();
-          const fixCtx = (verdict.issues || []).map((s, i) => `${i + 1}. ${s}`).join('\n');
-          this.ctx.log('info', `重派波次${this.ctx.currentWave + 1}，Worker 需修复驳回问题`, 'xiongda');
+          const issues = (verdict.issues || []).filter(Boolean);
+          const fixCtx = issues.map((s, i) => `${i + 1}. ${s}`).join('\n') || '（无具体问题，重新执行本任务确保完整覆盖）';
+          const roundNo = this.ctx.iterationCount;
+          const remain = Math.max(0, this.ctx.maxIterations - roundNo);
+          this.ctx.log('warn', `第 ${roundNo} 轮返工（余 ${remain} 次），只修复下述命中项`, 'luobotou');
           this.dispatchWave(this.ctx.currentWave, {
             ...wave,
-            context: `${wave.context || ''}\n\n## 上一轮驳回问题（必须修复）\n${fixCtx}`.trim(),
+            context: [
+              wave.context || '',
+              `## 返工指令（第 ${roundNo} 轮，剩余 ${remain} 次机会，超过将终审失败）`,
+              `请只针对下面这些命中问题做定点修复，不要推倒重来、也不要擅自扩大改动范围：`,
+              fixCtx,
+            ].join('\n\n').trim(),
           });
         }
       }
@@ -345,6 +406,36 @@ class TeamRunner {
       return null;
     });
     return this._verification;
+  }
+
+  /**
+   * 返工护栏：是否因成本/轮次硬顶而必须拦停返工。
+   * 命中任一条件返回原因字符串（非空即拦截），否则返回 null 放行。
+   *   - 返工轮次已达 maxIterations（状态机 ITERATING 也会拦，这里双保险）
+   *   - 该任务已烧 token 超过 per_task 预算的 rework_ratio（返回顶，默认 70%）
+   *   - 会话级已烧 token 接近 per_session 上限，留 5% 余量
+   */
+  _reworkGuard(level, issues = []) {
+    const used = Number(this.harness?.tokenUsage?.total) || 0;
+    const sess = Number(this.harness?.sessionUsage?.total) || 0;
+    const budget = this.harness ? this.harness.tokenBudget : null;
+
+    if (budget) {
+      const perTask = Number(budget.perTask) || 500000;
+      const reworkRatio = Number(this.ctx.task.rework_ratio || 0.7);
+      if (perTask > 0 && used >= perTask * reworkRatio) {
+        return `任务已用 ${used} token，达到 per_task 上限(${perTask})的 ${Math.round(reworkRatio * 100)}%（返工护栏）`;
+      }
+      const perSession = Number(budget.perSession) || 2000000;
+      if (perSession > 0 && sess >= perSession * 0.95) {
+        return `会话级 token 已用 ${sess}，接近 per_session 上限(${perSession}) 95%，停止返工`;
+      }
+    }
+
+    if (this.ctx.iterationCount >= this.ctx.maxIterations) {
+      return `已完成 ${this.ctx.iterationCount}/${this.ctx.maxIterations} 轮返工，超出上限`;
+    }
+    return null;
   }
 
   /** 汇总所有波次产出为交付物文本 */
