@@ -4,6 +4,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { DiscussionEngine } = require('../discussion-engine');
 
 const ROLES = [
@@ -77,4 +80,25 @@ test('讨论：过滤不存在/重复角色，主持人不参与发言', () => {
   const meta = d.start({ topic: 'T', participants: ['guangtouqiang', 'guangtouqiang', 'nonexistent', 'xiongda'] });
   // 去重且过滤不存在；xiongda（主持人）不进入 participants
   assert.deepEqual(meta.participants, ['guangtouqiang']);
+});
+
+test('讨论：记录持久化到 dataDir，history/load 可回看', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mavis-disc-'));
+  const { addLog } = makeLog();
+  const d = new DiscussionEngine({ harness: makeHarness(), addLog, ROLES, dataDir: tmp });
+  d.start({ topic: '持久化议题', maxRounds: 1 });
+  await d.run();
+  // 落盘文件存在
+  const files = fs.readdirSync(path.join(tmp, 'discussions')).filter(f => f.endsWith('.json'));
+  assert.ok(files.length >= 1, '应已持久化讨论记录');
+  // history 列表含本场
+  const hist = d.history();
+  assert.ok(hist.some(h => h.topic === '持久化议题'), 'history 应包含本场');
+  const top = hist[0];
+  // load 能取回完整转录（含主持人总结）
+  const rec = d.load(top.id);
+  assert.ok(rec, 'load 应返回记录');
+  assert.ok(rec.transcript.some(l => l.summary), '转录应含主持人结论');
+  assert.ok(rec.transcript.length >= 2);
+  fs.rmSync(tmp, { recursive: true, force: true });
 });

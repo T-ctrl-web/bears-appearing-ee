@@ -29,8 +29,8 @@ const { DiscussionEngine } = require('../engine/discussion-engine');
 const settings = require('./settings');
 const harness = new HarnessAdapter();
 const runner = new TeamRunner({ getState, addLog, resetTask, startTask, setRoleStatus, addWave, setWaveStatus, completeTask, ROLES }, { harness });
-// 自由讨论引擎：与任务状态机并行的"开会"，通过 addLog 播报到看板气泡
-const discussion = new DiscussionEngine({ harness, addLog, ROLES });
+// 自由讨论引擎：与任务状态机并行的"开会"，通过 addLog 播报到看板气泡；记录持久化到用户数据目录
+const discussion = new DiscussionEngine({ harness, addLog, ROLES, dataDir: settings.USER_DATA_DIR });
 
 const sseClients = new Set();
 
@@ -456,6 +456,18 @@ const server = http.createServer(async (req, res) => {
   }
   if (p === '/api/discuss/status' && req.method === 'GET') {
     sendJson(res, 200, discussion.status());
+    return;
+  }
+  if (p === '/api/discuss/history' && req.method === 'GET') {
+    sendJson(res, 200, { history: discussion.history() });
+    return;
+  }
+  // 读取一场历史讨论完整记录
+  if (p === '/api/discuss/load' && req.method === 'GET') {
+    const id = url.searchParams.get('id') || '';
+    const rec = discussion.load(id);
+    if (!rec) { sendJson(res, 404, { error: '讨论记录不存在' }); return; }
+    sendJson(res, 200, rec);
     return;
   }
   if (p === '/api/discuss/stop' && req.method === 'POST') {

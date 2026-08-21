@@ -1749,10 +1749,23 @@ updateProgress(0, 0);
     </div>
     <div id="discussStatus" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>
     <div id="discussTranscript" style="flex:1;overflow:auto;background:var(--bg3);border-radius:8px;padding:12px;font-size:13px;line-height:1.6;color:var(--ink);"></div>
-    <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end;">
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+      <button id="discussHistory"
+        style="background:var(--bg3);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;">📚 历史记录</button>
+      <div style="flex:1;"></div>
       <button id="discussStop"
         style="background:var(--bg3);color:var(--danger);border:1px solid var(--rule);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;">停止</button>
     </div>
+  </div>
+</div>
+<!-- 讨论历史面板 -->
+<div id="discussHistModal" style="display:none;position:fixed;inset:0;background:rgba(8,10,16,0.75);z-index:995;align-items:center;justify-content:center;">
+  <div style="width:min(760px,92vw);max-height:86vh;display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--rule);border-radius:12px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:600;color:var(--ink);">讨论历史记录</div>
+      <span id="discussHistClose" style="cursor:pointer;color:var(--muted);font-size:18px;">✕</span>
+    </div>
+    <div id="discussHistList" style="flex:1;overflow:auto;"></div>
   </div>
 </div>
 </body>
@@ -2013,6 +2026,39 @@ updateProgress(0, 0);
       poll();
     } catch (e) { statusEl.textContent = '启动失败'; }
   });
+
+  // === 历史记录：列出过往讨论并可回看完整转录 ===
+  const histModal = document.getElementById('discussHistModal');
+  const histList = document.getElementById('discussHistList');
+  function fmtTime(iso) { if (!iso) return ''; const d = new Date(iso); return (d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')); }
+  async function openHist() {
+    histModal.style.display = 'flex';
+    histList.innerHTML = '<div style="color:var(--muted);font-size:13px;">加载中…</div>';
+    try {
+      const d = await (await fetch('/api/discuss/history')).json();
+      const h = d.history || [];
+      if (!h.length) { histList.innerHTML = '<div style="color:var(--muted);font-size:13px;">（暂无历史讨论）</div>'; return; }
+      histList.innerHTML = '';
+      h.forEach(it => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;margin-bottom:8px;cursor:pointer;background:var(--bg3);';
+        const names = (it.participants || []).map(p => (typeof p === 'string' ? p : p)).join('、');
+        row.innerHTML =
+          '<div style="font-size:14px;font-weight:600;color:var(--ink);">' + escapeHTML(it.topic) + '</div>' +
+          '<div style="font-size:12px;color:var(--muted);">' + fmtTime(it.concludedAt) + ' · ' + it.count + ' 条发言 · 参会：' + escapeHTML(names) + '</div>' +
+          (it.summary ? '<div style="font-size:12px;color:var(--text-muted);">结论：' + escapeHTML(it.summary) + '</div>' : '');
+        row.onclick = async () => {
+          try {
+            const rec = await (await fetch('/api/discuss/load?id=' + encodeURIComponent(it.id))).json();
+            if (rec && rec.transcript) { renderTranscript(rec.transcript.map(m => ({ name: m.name, text: m.text, summary: m.summary }))); histModal.style.display = 'none'; modal.style.display = 'flex'; }
+          } catch (e) { histList.innerHTML = '<div style="color:var(--danger);font-size:13px;">读取失败</div>'; }
+        };
+        histList.appendChild(row);
+      });
+    } catch (e) { histList.innerHTML = '<div style="color:var(--danger);font-size:13px;">加载历史失败</div>'; }
+  }
+  document.getElementById('discussHistory').addEventListener('click', openHist);
+  document.getElementById('discussHistClose').addEventListener('click', () => { histModal.style.display = 'none'; });
 
   // 兼容 worker 侧可能存在的 maxRounds 配置（写死 2 轮，简洁）
   document.body.dataset.discussRounds = '2';

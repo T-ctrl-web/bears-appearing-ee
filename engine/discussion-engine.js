@@ -21,17 +21,74 @@ const MAX_SPEAK_BYTES = 4000; // 单条发言保留上限，避免上下文爆�
 
 class DiscussionEngine {
   /**
-   * @param {object} deps - { harness, addLog, ROLES }
+   * @param {object} deps - { harness, addLog, ROLES, dataDir }
    *   harness: HarnessAdapter 实例（含 roleMap、_chatCompletion、token 护栏）
    *   addLog: 用来往看板日志/气泡播报 (level, message, roleId)
    *   ROLES: 角色数组（server/state ROLES）
+   *   dataDir: 用户数据目录（用于持久化讨论记录，落盘到 dataDir/discussions/*.json）
    */
-  constructor({ harness, addLog, ROLES = [] }) {
+  constructor({ harness, addLog, ROLES = [], dataDir }) {
     this.harness = harness;
     this.addLog = addLog;
     this.ROLES = ROLES;
+    this.dataDir = dataDir ? path.join(dataDir, 'discussions') : null;
     this.active = null; // { id, topic, participants, round, maxRounds, transcript:[] }
     this.last = null;   // 最近一场已结束讨论的只读快照（供面板回看）
+    this._ensureDir();
+  }
+
+  _ensureDir() {
+    if (this.dataDir) { try { fs.mkdirSync(this.dataDir, { recursive: true }); } catch { /* 只读环境忽略 */ } }
+  }
+
+  /** 落盘一场讨论记录 */
+  _persist(disc) {
+    if (!this.dataDir) return;
+    try {
+      const rec = {
+        id: disc.id,
+        topic: disc.topic,
+        participants: disc.participants,
+        maxRounds: disc.maxRounds,
+        concludedAt: new Date().toISOString(),
+        transcript: disc.transcript.map(l => ({
+          role: l.role, name: this.name(l.role), text: l.text, summary: !!l.summary,
+        })),
+      };
+      fs.writeFileSync(path.join(this.dataDir, `${disc.id}.json`), JSON.stringify(rec, null, 2), 'utf-8');
+    } catch (e) { /* 持久化失败不影响运行 */ }
+  }
+
+  /** 历史讨论列表（时间倒序），每项含摘要 */
+  history() {
+    if (!this.dataDir) return [];
+    try {
+      const files = fs.readdirSync(this.dataDir).filter(f => f.endsWith('.json'));
+      const list = files.map(f => {
+        try {
+          const d = JSON.parse(fs.readFileSync(path.join(this.dataDir, f), 'utf-8'));
+          return {
+            id: d.id,
+            topic: d.topic,
+            participants: d.participants || [],
+            concludedAt: d.concludedAt || '',
+            count: (d.transcript || []).length,
+            summary: (d.transcript || []).filter(l => l.summary).map(l => l.text).join(' ').slice(0, 200),
+          };
+        } catch { return null; }
+      }).filter(Boolean);
+      return list.sort((a, b) => (b.concludedAt || '').localeCompare(a.concludedAt || ''));
+    } catch { return []; }
+  }
+
+  /** 加载一场历史讨论的完整记录 */
+  load(id) {
+    if (!this.dataDir || !id) return null;
+    try {
+      const f = path.join(this.dataDir, `${id}.json`);
+      if (!fs.existsSync(f)) return null;
+      return JSON.parse(fs.readFileSync(f, 'utf-8'));
+    } catch { return null; }
   }
 
   get roleNames() {
@@ -149,9 +206,12 @@ class DiscussionEngine {
           id: done.id,
           topic: done.topic,
           participants: done.participants,
+          maxRounds: done.maxRounds,
           transcript: done.transcript.map(l => ({ ...l })),
         };
-        if (this.addLog) this.addLog('info', `讨论结束：${done.transcript.length} 条发言`, 'xiongda');
+        // 持久化到磁盘，结束的服务重启后仍可回看
+        this._persist(done);
+        if (this.addLog) this.addLog('info', `讨论结束：${done.transcript.length} 条发言（已存档）`, 'xiongda');
       }
     }
   }
